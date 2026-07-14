@@ -3,43 +3,117 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Voice Chat</title>
+  <title>Ripple</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="join-screen">
-    <h1>Voice Chat</h1>
-    <div class="form-group">
-      <label>Display Name</label>
-      <input type="text" id="display-name" placeholder="Enter your name" autocomplete="off">
+  <div id="auth-screen">
+    <div class="auth-box">
+      <h1>Ripple</h1>
+      <p class="auth-sub">Talk. Text. Together.</p>
+      <div id="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="register">Register</button>
+      </div>
+      <form id="auth-form">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="auth-username" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="auth-password" autocomplete="current-password" required>
+        </div>
+        <div id="auth-error" class="auth-error"></div>
+        <button type="submit" id="auth-btn">Login</button>
+      </form>
     </div>
-    <button id="join-btn">Join</button>
   </div>
 
-  <div id="room-screen" style="display:none">
-    <div id="top-bar">
-      <span id="user-count">0 online</span>
-      <button id="leave-btn">Leave</button>
-    </div>
-    <div id="peer-grid"></div>
-    <div id="local-screen-preview" style="display:none">
-      <video id="local-screen-video" autoplay playsinline muted></video>
-      <button id="stop-screen-btn">Stop Sharing</button>
-    </div>
-    <div id="controls">
-      <div id="device-selects">
-        <div class="device-group">
-          <label>Microphone</label>
-          <select id="mic-select"></select>
+  <div id="app" style="display:none">
+    <div id="sidebar">
+      <div id="user-section">
+        <div id="user-avatar"></div>
+        <div id="user-info">
+          <span id="user-name"></span>
+          <span id="user-status">Online</span>
         </div>
-        <div class="device-group">
-          <label>Speaker</label>
-          <select id="speaker-select"></select>
+        <button id="logout-btn" title="Logout">✕</button>
+      </div>
+      <div id="channel-list">
+        <div class="channel-group">
+          <div class="channel-group-header">Voice Channels</div>
+          <div id="voice-channels"></div>
+        </div>
+        <div class="channel-group">
+          <div class="channel-group-header">Text Channels</div>
+          <div id="text-channels"></div>
         </div>
       </div>
-      <div id="control-buttons">
-        <button id="mute-btn" class="control-btn">Mute</button>
-        <button id="screen-share-btn" class="control-btn">Share Screen</button>
+    </div>
+
+    <div id="main">
+      <div id="voice-view" style="display:none">
+        <div id="voice-header">
+          <span id="voice-channel-name"></span>
+          <span id="voice-users-count"></span>
+        </div>
+        <div id="voice-users-list">
+          <div id="voice-peer-grid"></div>
+          <div id="voice-status">
+            <div id="connection-indicator"></div>
+            <span id="connection-status-text">Connected</span>
+          </div>
+        </div>
+        <div id="voice-controls">
+          <div id="vc-left">
+            <button id="mute-btn" class="vc-btn" title="Toggle Mute">
+              <span class="vc-icon">🎤</span>
+              <span class="vc-label">Mute</span>
+            </button>
+            <button id="deafen-btn" class="vc-btn" title="Toggle Deafen">
+              <span class="vc-icon">🔇</span>
+              <span class="vc-label">Deafen</span>
+            </button>
+          </div>
+          <div id="vc-center">
+            <button id="screen-share-btn" class="vc-btn" title="Share Screen">
+              <span class="vc-icon">🖥️</span>
+              <span class="vc-label">Share</span>
+            </button>
+            <button id="ptt-btn" class="vc-btn active-soft" title="Push to Talk (Hold Space)">
+              <span class="vc-icon">🎙️</span>
+              <span class="vc-label">PTT</span>
+            </button>
+          </div>
+          <div id="vc-right">
+            <div class="device-group" title="Microphone">
+              <label>Mic</label>
+              <select id="mic-select"></select>
+            </div>
+            <div class="device-group" title="Speaker">
+              <label>Spk</label>
+              <select id="speaker-select"></select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="local-screen-preview" style="display:none">
+        <video id="local-screen-video" autoplay playsinline muted></video>
+        <button id="stop-screen-btn">Stop</button>
+      </div>
+
+      <div id="chat-view" style="display:none">
+        <div id="chat-header">
+          <span id="chat-channel-name"></span>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-typing"></div>
+        <div id="chat-input-area">
+          <textarea id="chat-input" placeholder="Message..." rows="1"></textarea>
+          <button id="chat-send-btn">Send</button>
+        </div>
       </div>
     </div>
   </div>

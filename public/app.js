@@ -1,55 +1,477 @@
-const socket = io();
+const API = '';
+let socket = null;
+let token = localStorage.getItem('token');
+let currentUser = null;
+let channels = [];
+let currentChannel = null;
+let currentView = null;
 let localStream = null;
 let screenStream = null;
-let peerConnections = {};
-let screenPeerConnections = {};
-let pendingCandidates = {};
-let screenPendingCandidates = {};
-let userName = '';
 let isMuted = false;
+let isDeafened = false;
+let pttMode = false;
+let pttActive = false;
 let isScreenSharing = false;
-let peers = {};
-let remoteAnalysers = {};
+let peerConnections = {};
+let peerUsers = {};
 let localAnalyserInterval = null;
+let remoteAnalysers = {};
 let remoteAnalyserIntervals = {};
+let connectedPeers = new Set();
+let typingTimeout = null;
 
-const APP_COLORS = [
-  '#f97583', '#79c0ff', '#56d364', '#d2a8ff', '#ffa657',
-  '#7ee787', '#a5d6ff', '#ff7b72', '#bbf0d4', '#f0883e'
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
 ];
 
-function getColorForName(name) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return APP_COLORS[Math.abs(hash) % APP_COLORS.length];
+/* ====== AUTH ====== */
+const authScreen = document.getElementById('auth-screen');
+const appEl = document.getElementById('app');
+const authForm = document.getElementById('auth-form');
+const authUsername = document.getElementById('auth-username');
+const authPassword = document.getElementById('auth-password');
+const authBtn = document.getElementById('auth-btn');
+const authError = document.getElementById('auth-error');
+const authTabs = document.querySelectorAll('.auth-tab');
+let authMode = 'login';
+
+authTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    authTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    authMode = tab.dataset.tab;
+    authBtn.textContent = authMode === 'login' ? 'Login' : 'Register';
+    authError.textContent = '';
+  });
+});
+
+authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = authUsername.value.trim();
+  const password = authPassword.value;
+  if (!username || !password) return;
+  authBtn.disabled = true;
+  authBtn.textContent = '...';
+  authError.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/${authMode}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) { authError.textContent = data.error; return; }
+    token = data.token;
+    localStorage.setItem('token', token);
+    currentUser = data.user;
+    initApp();
+  } catch { authError.textContent = 'Connection error'; }
+  finally { authBtn.disabled = false; authBtn.textContent = authMode === 'login' ? 'Login' : 'Register'; }
+});
+
+async function checkAuth() {
+  if (!token) return false;
+  try {
+    const res = await fetch(`${API}/api/me`, { headers: { 'Authorization': token } });
+    if (!res.ok) { localStorage.removeItem('token'); token = null; return false; }
+    const data = await res.json();
+    currentUser = data.user;
+    return true;
+  } catch { return false; }
+}
+
+/* ====== INIT ====== */
+async function initApp() {
+  authScreen.style.display = 'none';
+  appEl.style.display = 'flex';
+  renderUserInfo();
+
+  const chRes = await fetch(`${API}/api/channels`);
+  channels = await chRes.json();
+
+  socket = io();
+  socket.emit('auth', token);
+  socket.on('authed', (user) => {
+    if (!user) { logout(); return; }
+    setupSocket();
+    renderChannels();
+    if (channels.length > 0) {
+      const firstVoice = channels.find(c => c.type === 'voice');
+      const firstText = channels.find(c => c.type === 'text');
+      switchView(firstVoice || firstText);
+    }
+  });
+}
+
+function logout() {
+  if (socket) socket.disconnect();
+  localStorage.removeItem('token');
+  cleanupVoice();
+  location.reload();
+}
+
+document.getElementById('logout-btn').addEventListener('click', logout);
+
+/* ====== USER INFO ====== */
+function renderUserInfo() {
+  const avatar = document.getElementById('user-avatar');
+  avatar.style.background = currentUser.avatar_color || '#58a6ff';
+  avatar.textContent = getInitials(currentUser.username);
+  document.getElementById('user-name').textContent = currentUser.username;
 }
 
 function getInitials(name) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
+  const p = name.trim().split(/\s+/);
+  return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 }
 
-const joinScreen = document.getElementById('join-screen');
-const roomScreen = document.getElementById('room-screen');
-const joinBtn = document.getElementById('join-btn');
-const leaveBtn = document.getElementById('leave-btn');
-const displayNameInput = document.getElementById('display-name');
-const userCount = document.getElementById('user-count');
-const peerGrid = document.getElementById('peer-grid');
+/* ====== CHANNELS ====== */
+function renderChannels() {
+  const voiceContainer = document.getElementById('voice-channels');
+  const textContainer = document.getElementById('text-channels');
+  voiceContainer.innerHTML = '';
+  textContainer.innerHTML = '';
+  channels.forEach(ch => {
+    const el = document.createElement('div');
+    el.className = 'channel-item';
+    el.dataset.id = ch.id;
+    el.dataset.type = ch.type;
+    el.innerHTML = `<span class="ch-icon">${ch.type === 'voice' ? '🔊' : '💬'}</span><span class="ch-name">${ch.name}</span>`;
+    el.addEventListener('click', () => switchView(ch));
+    (ch.type === 'voice' ? voiceContainer : textContainer).appendChild(el);
+  });
+}
+
+function switchView(channel) {
+  if (currentChannel && currentChannel.id === channel.id) return;
+  currentChannel = channel;
+  document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+  const item = document.querySelector(`.channel-item[data-id="${channel.id}"]`);
+  if (item) item.classList.add('active');
+
+  if (channel.type === 'voice') {
+    switchToVoice(channel);
+  } else {
+    switchToChat(channel);
+  }
+}
+
+/* ====== VOICE ====== */
+let currentVoiceChannel = null;
+
+async function switchToVoice(channel) {
+  document.getElementById('chat-view').style.display = 'none';
+  document.getElementById('voice-view').style.display = 'flex';
+  currentView = 'voice';
+  document.getElementById('voice-channel-name').textContent = channel.name;
+
+  if (currentVoiceChannel && currentVoiceChannel.id !== channel.id) {
+    cleanupVoice();
+  }
+  currentVoiceChannel = channel;
+
+  if (!localStream) {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true, sampleRate: 48000, channelCount: 2 },
+        video: false
+      });
+      enumerateDevices();
+      startLocalTalkingDetection();
+    } catch { return; }
+  }
+
+  socket.emit('channels:join', channel.id);
+}
+
+function cleanupVoice() {
+  Object.values(peerConnections).forEach(pc => pc.close());
+  peerConnections = {};
+  peerUsers = {};
+  connectedPeers.clear();
+  Object.values(remoteAnalyserIntervals).forEach(clearInterval);
+  remoteAnalyserIntervals = {};
+  Object.values(remoteAnalysers).forEach(a => a.ctx.close());
+  remoteAnalysers = {};
+  document.getElementById('voice-peer-grid').innerHTML = '';
+  if (isScreenSharing) stopScreenShare();
+  currentVoiceChannel = null;
+}
+
+socket.on('voice-users', (users) => {
+  renderVoiceUsers(users);
+  document.getElementById('voice-users-count').textContent = `${users.length} connected`;
+  users.forEach(u => {
+    if (u.id !== socket.id) {
+      createVoiceTile(u.id, u.user);
+      connectToPeer(u.id);
+    }
+  });
+});
+
+socket.on('voice-user-joined', (data) => {
+  if (data.id === socket.id) return;
+  createVoiceTile(data.id, data.user);
+  connectToPeer(data.id);
+  const users = document.querySelectorAll('.voice-user-tile').length;
+  document.getElementById('voice-users-count').textContent = `${users} connected`;
+});
+
+socket.on('voice-user-left', (data) => {
+  disconnectPeer(data.id);
+  const tile = document.querySelector(`.voice-user-tile[data-id="${data.id}"]`);
+  if (tile) tile.remove();
+  const users = document.querySelectorAll('.voice-user-tile').length;
+  document.getElementById('voice-users-count').textContent = `${users} connected`;
+});
+
+function renderVoiceUsers(users) {
+  const grid = document.getElementById('voice-peer-grid');
+  grid.innerHTML = '';
+  users.forEach(u => {
+    if (u.id !== socket.id) {
+      createVoiceTile(u.id, u.user);
+    }
+  });
+}
+
+function createVoiceTile(id, user) {
+  const existing = document.querySelector(`.voice-user-tile[data-id="${id}"]`);
+  if (existing) return;
+  const tile = document.createElement('div');
+  tile.className = 'voice-user-tile';
+  tile.dataset.id = id;
+  const avatarColor = user.avatar_color || '#58a6ff';
+  tile.innerHTML = `
+    <div class="vu-avatar" style="background:${avatarColor}">${getInitials(user.username)}</div>
+    <div class="vu-name">${user.username}</div>
+    <div class="vu-indicators">
+      <div class="vu-dot"></div>
+      <div class="vu-muted">MUTED</div>
+    </div>`;
+  document.getElementById('voice-peer-grid').appendChild(tile);
+}
+
+async function connectToPeer(peerId) {
+  if (peerConnections[peerId] || !localStream) return;
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  peerConnections[peerId] = pc;
+
+  localStream.getAudioTracks().forEach(track => pc.addTrack(track, localStream));
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate) socket.emit('voice-ice', { to: peerId, candidate: e.candidate });
+  };
+
+  pc.ontrack = (e) => {
+    const tile = document.querySelector(`.voice-user-tile[data-id="${peerId}"]`);
+    if (!tile) return;
+    let audio = tile.querySelector('audio');
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.autoplay = true;
+      tile.appendChild(audio);
+    }
+    audio.srcObject = e.streams[0];
+    audio.play().catch(() => {});
+    startRemoteTalkingDetection(peerId, e.streams[0]);
+  };
+
+  pc.onconnectionstatechange = () => {
+    const ind = document.getElementById('connection-indicator');
+    const txt = document.getElementById('connection-status-text');
+    if (pc.connectionState === 'connected') {
+      connectedPeers.add(peerId);
+      ind.className = '';
+      txt.textContent = `Connected (${connectedPeers.size} peer${connectedPeers.size !== 1 ? 's' : ''})`;
+    } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      connectedPeers.delete(peerId);
+      ind.className = 'warning';
+      txt.textContent = `Reconnecting...`;
+      setTimeout(() => connectToPeer(peerId), 2000);
+    }
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit('voice-offer', { to: peerId, offer });
+}
+
+socket.on('voice-offer', async (data) => {
+  if (!localStream) return;
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  peerConnections[data.from] = pc;
+  localStream.getAudioTracks().forEach(track => pc.addTrack(track, localStream));
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate) socket.emit('voice-ice', { to: data.from, candidate: e.candidate });
+  };
+
+  pc.ontrack = (e) => {
+    const tile = document.querySelector(`.voice-user-tile[data-id="${data.from}"]`);
+    if (!tile) return;
+    let audio = tile.querySelector('audio');
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.autoplay = true;
+      tile.appendChild(audio);
+    }
+    audio.srcObject = e.streams[0];
+    audio.play().catch(() => {});
+    startRemoteTalkingDetection(data.from, e.streams[0]);
+  };
+
+  pc.onconnectionstatechange = () => {
+    const ind = document.getElementById('connection-indicator');
+    const txt = document.getElementById('connection-status-text');
+    if (pc.connectionState === 'connected') {
+      connectedPeers.add(data.from);
+      ind.className = '';
+      txt.textContent = `Connected (${connectedPeers.size} peer${connectedPeers.size !== 1 ? 's' : ''})`;
+    } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      connectedPeers.delete(data.from);
+      ind.className = 'warning';
+      txt.textContent = 'Reconnecting...';
+    }
+  };
+
+  await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  socket.emit('voice-answer', { to: data.from, answer });
+});
+
+socket.on('voice-answer', async (data) => {
+  const pc = peerConnections[data.from];
+  if (pc && pc.localDescription && pc.localDescription.type === 'offer') {
+    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+  }
+});
+
+socket.on('voice-ice', async (data) => {
+  const pc = peerConnections[data.from];
+  if (pc && pc.remoteDescription) {
+    await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+  }
+});
+
+function disconnectPeer(peerId) {
+  if (peerConnections[peerId]) {
+    peerConnections[peerId].close();
+    delete peerConnections[peerId];
+  }
+  connectedPeers.delete(peerId);
+  stopRemoteTalkingDetection(peerId);
+}
+
+/* ====== TALKING DETECTION ====== */
+function startLocalTalkingDetection() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaStreamSource(localStream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  src.connect(analyser);
+  if (localAnalyserInterval) clearInterval(localAnalyserInterval);
+  localAnalyserInterval = setInterval(() => {
+    if (!localStream || isDeafened) return;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((a, b) => a + b, 0) / data.length;
+    const talking = avg > 15 && !isMuted && !pttActive;
+    const tile = document.querySelector(`.voice-user-tile[data-id="local"]`);
+    if (tile) tile.classList.toggle('talking', talking);
+  }, 100);
+}
+
+function startRemoteTalkingDetection(peerId, stream) {
+  if (remoteAnalyserIntervals[peerId]) clearInterval(remoteAnalyserIntervals[peerId]);
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaStreamSource(stream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  src.connect(analyser);
+  remoteAnalysers[peerId] = { ctx, analyser };
+  remoteAnalyserIntervals[peerId] = setInterval(() => {
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((a, b) => a + b, 0) / data.length;
+    const talking = avg > 12;
+    const tile = document.querySelector(`.voice-user-tile[data-id="${peerId}"]`);
+    if (tile) tile.classList.toggle('talking', talking);
+  }, 100);
+}
+
+function stopRemoteTalkingDetection(peerId) {
+  if (remoteAnalyserIntervals[peerId]) { clearInterval(remoteAnalyserIntervals[peerId]); delete remoteAnalyserIntervals[peerId]; }
+  if (remoteAnalysers[peerId]) { remoteAnalysers[peerId].ctx.close(); delete remoteAnalysers[peerId]; }
+}
+
+/* ====== VOICE CONTROLS ====== */
+const muteBtn = document.getElementById('mute-btn');
+const deafenBtn = document.getElementById('deafen-btn');
+const screenShareBtn = document.getElementById('screen-share-btn');
+const pttBtn = document.getElementById('ptt-btn');
 const micSelect = document.getElementById('mic-select');
 const speakerSelect = document.getElementById('speaker-select');
-const muteBtn = document.getElementById('mute-btn');
-const screenShareBtn = document.getElementById('screen-share-btn');
-const localScreenPreview = document.getElementById('local-screen-preview');
-const localScreenVideo = document.getElementById('local-screen-video');
-const stopScreenBtn = document.getElementById('stop-screen-btn');
 
-async function getDevices() {
+muteBtn.addEventListener('click', () => {
+  isMuted = !isMuted;
+  if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = !isMuted));
+  muteBtn.classList.toggle('active', isMuted);
+  muteBtn.querySelector('.vc-label').textContent = isMuted ? 'Muted' : 'Mute';
+  const tile = document.querySelector('.voice-user-tile[data-id="local"]');
+  if (tile) tile.classList.toggle('muted', isMuted);
+});
+
+deafenBtn.addEventListener('click', () => {
+  isDeafened = !isDeafened;
+  deafenBtn.classList.toggle('active', isDeafened);
+  deafenBtn.querySelector('.vc-label').textContent = isDeafened ? 'Deafened' : 'Deafen';
+  if (isDeafened) {
+    muteBtn.classList.add('active');
+    muteBtn.querySelector('.vc-label').textContent = 'Muted';
+    if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = false));
+  } else {
+    isMuted = false;
+    muteBtn.classList.remove('active');
+    muteBtn.querySelector('.vc-label').textContent = 'Mute';
+    if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = true));
+  }
+});
+
+pttBtn.addEventListener('click', () => {
+  pttMode = !pttMode;
+  pttBtn.classList.toggle('active', pttMode);
+  pttBtn.querySelector('.vc-label').textContent = pttMode ? 'PTT On' : 'PTT';
+  if (!pttMode && localStream) localStream.getAudioTracks().forEach(t => (t.enabled = !isMuted));
+  pttActive = false;
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && pttMode && currentView === 'voice' && !e.repeat) {
+    e.preventDefault();
+    pttActive = true;
+    if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = true));
+    const tile = document.querySelector(`.voice-user-tile[data-id="local"]`);
+    if (tile) tile.classList.add('talking');
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' && pttMode) {
+    pttActive = false;
+    if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = !isMuted));
+    const tile = document.querySelector(`.voice-user-tile[data-id="local"]`);
+    if (tile) tile.classList.remove('talking');
+  }
+});
+
+async function enumerateDevices() {
   const devices = await navigator.mediaDevices.enumerateDevices();
   micSelect.innerHTML = '';
   speakerSelect.innerHTML = '';
@@ -58,7 +480,7 @@ async function getDevices() {
     if (d.kind === 'audioinput') {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
-      opt.textContent = d.label || `Microphone ${micSelect.length + 1}`;
+      opt.textContent = d.label || `Mic ${micSelect.length + 1}`;
       if (d.deviceId === currentMic) opt.selected = true;
       micSelect.appendChild(opt);
     }
@@ -71,459 +493,169 @@ async function getDevices() {
   });
 }
 
-async function startLocalAudio(deviceId) {
-  if (localStream) {
-    localStream.getTracks().forEach(t => t.stop());
-  }
-  const constraints = {
-    audio: {
-      deviceId: deviceId ? { exact: deviceId } : undefined,
-      noiseSuppression: true,
-      echoCancellation: true,
-      autoGainControl: true,
-      sampleRate: 48000,
-      channelCount: 2
-    },
+navigator.mediaDevices.addEventListener('devicechange', enumerateDevices);
+
+micSelect.addEventListener('change', async () => {
+  if (!localStream) return;
+  const oldStream = localStream;
+  localStream = await navigator.mediaDevices.getUserMedia({
+    audio: { deviceId: micSelect.value ? { exact: micSelect.value } : undefined, noiseSuppression: true, echoCancellation: true },
     video: false
-  };
-  localStream = await navigator.mediaDevices.getUserMedia(constraints);
-  await getDevices();
-  startLocalTalkingDetection();
-  return localStream;
-}
+  });
+  oldStream.getTracks().forEach(t => t.stop());
+  Object.entries(peerConnections).forEach(([id, pc]) => {
+    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+    if (sender) sender.replaceTrack(localStream.getAudioTracks()[0]);
+  });
+});
 
-function startLocalTalkingDetection() {
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const src = audioCtx.createMediaStreamSource(localStream);
-  const analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256;
-  src.connect(analyser);
+speakerSelect.addEventListener('change', () => {
+  document.querySelectorAll('audio').forEach(el => {
+    if (el.srcObject && typeof el.setSinkId === 'function') el.setSinkId(speakerSelect.value).catch(() => {});
+  });
+});
 
-  if (localAnalyserInterval) clearInterval(localAnalyserInterval);
-  localAnalyserInterval = setInterval(() => {
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(data);
-    const avg = data.reduce((a, b) => a + b, 0) / data.length;
-    const talking = avg > 15 && !isMuted;
-    const tile = document.querySelector(`.peer-tile[data-peer="local"]`);
-    if (tile) tile.classList.toggle('talking', talking);
-  }, 100);
-}
-
-function startRemoteTalkingDetection(peerId, stream) {
-  if (remoteAnalyserIntervals[peerId]) {
-    clearInterval(remoteAnalyserIntervals[peerId]);
-  }
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const src = audioCtx.createMediaStreamSource(stream);
-  const analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256;
-  src.connect(analyser);
-  remoteAnalysers[peerId] = { ctx: audioCtx, analyser };
-
-  remoteAnalyserIntervals[peerId] = setInterval(() => {
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(data);
-    const avg = data.reduce((a, b) => a + b, 0) / data.length;
-    const talking = avg > 12;
-    const tile = document.querySelector(`.peer-tile[data-peer="${peerId}"]`);
-    if (tile) tile.classList.toggle('talking', talking);
-  }, 100);
-}
-
-function stopRemoteTalkingDetection(peerId) {
-  if (remoteAnalyserIntervals[peerId]) {
-    clearInterval(remoteAnalyserIntervals[peerId]);
-    delete remoteAnalyserIntervals[peerId];
-  }
-  if (remoteAnalysers[peerId]) {
-    remoteAnalysers[peerId].ctx.close();
-    delete remoteAnalysers[peerId];
-  }
-}
-
-function getPending(peerId, isScreen) {
-  const map = isScreen ? screenPendingCandidates : pendingCandidates;
-  if (!map[peerId]) map[peerId] = [];
-  return map[peerId];
-}
-
-function drainPending(peerId, isScreen) {
-  const map = isScreen ? screenPendingCandidates : pendingCandidates;
-  const candidates = map[peerId] || [];
-  delete map[peerId];
-  const connections = isScreen ? screenPeerConnections : peerConnections;
-  const pc = connections[peerId];
-  if (pc) {
-    candidates.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {}));
-  }
-}
-
-function createPeerConnection(peerId, stream, isScreen = false) {
-  const config = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' },
-      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
-    ]
-  };
-  const pc = new RTCPeerConnection(config);
-  const connections = isScreen ? screenPeerConnections : peerConnections;
-
-  if (connections[peerId]) {
-    connections[peerId].close();
-  }
-  connections[peerId] = pc;
-
-  if (stream) {
-    stream.getTracks().forEach(track => {
-      pc.addTrack(track, stream);
-    });
-  }
-
-  pc.onicecandidate = (e) => {
-    if (e.candidate) {
-      const eventType = isScreen ? 'screen-share-ice' : 'ice-candidate';
-      socket.emit(eventType, { to: peerId, candidate: e.candidate });
-    }
-  };
-
-  pc.ontrack = (e) => {
-    if (isScreen) {
-      handleScreenTrack(peerId, e.streams[0]);
-    } else {
-      handleAudioTrack(peerId, e.streams[0]);
-    }
-  };
-
-  pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-      cleanupPeer(peerId, isScreen);
-    }
-  };
-
-  return pc;
-}
-
-function handleAudioTrack(peerId, stream) {
-  const tile = document.querySelector(`.peer-tile[data-peer="${peerId}"]`);
-  if (!tile) return;
-  let audioEl = tile.querySelector('audio');
-  if (!audioEl) {
-    audioEl = document.createElement('audio');
-    audioEl.style.display = 'none';
-    tile.appendChild(audioEl);
-
-    const speakerId = speakerSelect.value;
-    if (speakerId && typeof audioEl.setSinkId === 'function') {
-      audioEl.setSinkId(speakerId).catch(() => {});
-    }
-  }
-  audioEl.srcObject = stream;
-  audioEl.play().catch(() => {});
-
-  startRemoteTalkingDetection(peerId, stream);
-}
-
-function handleScreenTrack(peerId, stream) {
-  let container = document.querySelector(`.screen-share-container[data-screen="${peerId}"]`);
-  if (!container) {
-    container = document.createElement('div');
-    container.className = 'screen-share-container';
-    container.dataset.screen = peerId;
-    const header = document.createElement('div');
-    header.className = 'screen-share-header';
-    const name = peers[peerId] || 'Someone';
-    header.innerHTML = `<span>${name}'s screen</span>`;
-    container.appendChild(header);
-    const video = document.createElement('video');
-    video.autoplay = true;
-    video.playsInline = true;
-    video.style.width = '100%';
-    container.appendChild(video);
-    peerGrid.parentNode.insertBefore(container, peerGrid.nextSibling);
-  }
-  container.classList.add('active');
-  const video = container.querySelector('video');
-  if (video) video.srcObject = stream;
-}
-
-function createPeerTile(id, name, isLocal) {
-  const existing = document.querySelector(`.peer-tile[data-peer="${id}"]`);
-  if (existing) return existing;
-
-  const tile = document.createElement('div');
-  tile.className = 'peer-tile';
-  tile.dataset.peer = id;
-
-  const avatar = document.createElement('div');
-  avatar.className = 'peer-avatar';
-  avatar.style.background = getColorForName(name);
-  avatar.textContent = getInitials(name);
-
-  const label = document.createElement('div');
-  label.className = 'peer-name-label';
-  label.textContent = isLocal ? `${name} (you)` : name;
-
-  const indicators = document.createElement('div');
-  indicators.className = 'peer-indicators';
-
-  const talkingDot = document.createElement('div');
-  talkingDot.className = 'talking-indicator';
-  indicators.appendChild(talkingDot);
-
-  const mutedBadge = document.createElement('div');
-  mutedBadge.className = 'muted-indicator';
-  mutedBadge.textContent = 'MUTED';
-  indicators.appendChild(mutedBadge);
-
-  const screenBadge = document.createElement('div');
-  screenBadge.className = 'screen-share-badge';
-  screenBadge.textContent = 'SHARING';
-  indicators.appendChild(screenBadge);
-
-  tile.appendChild(avatar);
-  tile.appendChild(label);
-  tile.appendChild(indicators);
-
-  peerGrid.appendChild(tile);
-  return tile;
-}
-
-function cleanupPeer(peerId, isScreen = false) {
-  const connections = isScreen ? screenPeerConnections : peerConnections;
-  if (connections[peerId]) {
-    connections[peerId].close();
-    delete connections[peerId];
-  }
-  if (isScreen) {
-    const container = document.querySelector(`.screen-share-container[data-screen="${peerId}"]`);
-    if (container) {
-      container.querySelector('video').srcObject = null;
-      container.classList.remove('active');
-    }
-  } else {
-    stopRemoteTalkingDetection(peerId);
-    const tile = document.querySelector(`.peer-tile[data-peer="${peerId}"]`);
-    if (tile) tile.remove();
-    delete peers[peerId];
-  }
-}
-
-async function createAndSendOffer(peerId, isScreen = false) {
-  const stream = isScreen ? screenStream : localStream;
-  const pc = createPeerConnection(peerId, stream, isScreen);
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  const eventType = isScreen ? 'screen-share-offer' : 'offer';
-  socket.emit(eventType, { to: peerId, offer });
-}
-
-async function handleOffer(data, isScreen = false) {
-  const stream = isScreen ? screenStream : localStream;
-  const pc = createPeerConnection(data.from, stream, isScreen);
-  await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-  drainPending(data.from, isScreen);
-  const answer = await pc.createAnswer();
-  await pc.setLocalDescription(answer);
-  const eventType = isScreen ? 'screen-share-answer' : 'answer';
-  socket.emit(eventType, { to: data.from, answer });
-}
-
-async function handleAnswer(data, isScreen = false) {
-  const connections = isScreen ? screenPeerConnections : peerConnections;
-  const pc = connections[data.from];
-  if (pc && pc.localDescription && pc.localDescription.type === 'offer') {
-    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-    drainPending(data.from, isScreen);
-  }
-}
-
-async function handleIceCandidate(data, isScreen = false) {
-  const connections = isScreen ? screenPeerConnections : peerConnections;
-  const pc = connections[data.from];
-  if (pc && pc.remoteDescription) {
-    await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
-  } else if (pc) {
-    getPending(data.from, isScreen).push(data.candidate);
-  }
-}
+/* ====== SCREEN SHARE ====== */
+screenShareBtn.addEventListener('click', () => {
+  if (isScreenSharing) stopScreenShare();
+  else startScreenShare();
+});
 
 async function startScreenShare() {
   try {
     screenStream = await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 }
-      },
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
       audio: false
     });
-
     isScreenSharing = true;
-    screenShareBtn.textContent = 'Stop Sharing';
-    screenShareBtn.classList.add('screen-active');
-
-    localScreenVideo.srcObject = screenStream;
-    localScreenPreview.style.display = 'flex';
-
-    const peersList = Object.keys(peerConnections);
-    for (const peerId of peersList) {
-      await createAndSendOffer(peerId, true);
-    }
-
-    screenStream.getVideoTracks()[0].onended = () => {
-      stopScreenShare();
-    };
-
-    const localTile = document.querySelector(`.peer-tile[data-peer="local"]`);
-    if (localTile) localTile.classList.add('screen-sharing');
-
-  } catch (err) {
-    console.log('Screen share cancelled or failed:', err);
-  }
+    screenShareBtn.classList.add('active');
+    screenShareBtn.querySelector('.vc-label').textContent = 'Stop';
+    document.getElementById('local-screen-preview').style.display = 'flex';
+    document.getElementById('local-screen-video').srcObject = screenStream;
+    screenStream.getVideoTracks()[0].onended = stopScreenShare;
+  } catch {}
 }
 
 function stopScreenShare() {
-  if (screenStream) {
-    screenStream.getTracks().forEach(t => t.stop());
-    screenStream = null;
-  }
+  if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
   isScreenSharing = false;
-  screenShareBtn.textContent = 'Share Screen';
-  screenShareBtn.classList.remove('screen-active');
-  localScreenPreview.style.display = 'none';
-  localScreenVideo.srcObject = null;
-
-  document.querySelectorAll('.screen-share-container').forEach(el => {
-    const video = el.querySelector('video');
-    if (video) video.srcObject = null;
-    el.classList.remove('active');
-  });
-
-  Object.keys(screenPeerConnections).forEach(peerId => {
-    if (screenPeerConnections[peerId]) {
-      screenPeerConnections[peerId].close();
-      delete screenPeerConnections[peerId];
-    }
-  });
-
-  const localTile = document.querySelector(`.peer-tile[data-peer="local"]`);
-  if (localTile) localTile.classList.remove('screen-sharing');
+  screenShareBtn.classList.remove('active');
+  screenShareBtn.querySelector('.vc-label').textContent = 'Share';
+  document.getElementById('local-screen-preview').style.display = 'none';
+  document.getElementById('local-screen-video').srcObject = null;
 }
 
-stopScreenBtn.addEventListener('click', stopScreenShare);
+document.getElementById('stop-screen-btn').addEventListener('click', stopScreenShare);
 
-joinBtn.addEventListener('click', async () => {
-  const name = displayNameInput.value.trim();
-  if (!name) return;
+/* ====== CHAT ====== */
+const chatView = document.getElementById('chat-view');
+const chatMessages = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+const chatSendBtn = document.getElementById('chat-send-btn');
+const chatTyping = document.getElementById('chat-typing');
+let currentChatChannel = null;
 
-  userName = name;
+async function switchToChat(channel) {
+  document.getElementById('voice-view').style.display = 'none';
+  chatView.style.display = 'flex';
+  currentView = 'chat';
+  currentChatChannel = channel;
+  document.getElementById('chat-channel-name').textContent = channel.name;
+  chatMessages.innerHTML = '';
+  chatTyping.textContent = '';
 
+  socket.emit('chat:join', channel.id);
+
+  const res = await fetch(`${API}/api/channels/${channel.id}/messages`);
+  const msgs = await res.json();
+  msgs.forEach(msg => renderMessage(msg));
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function renderMessage(msg) {
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.innerHTML = `
+    <div class="chat-msg-avatar" style="background:${msg.avatar_color || '#58a6ff'}">${getInitials(msg.username)}</div>
+    <div class="chat-msg-body">
+      <div class="chat-msg-header">
+        <span class="chat-msg-user">${msg.username}</span>
+        <span class="chat-msg-time">${formatTime(msg.created_at)}</span>
+      </div>
+      <div class="chat-msg-content">${escapeHtml(msg.content)}</div>
+    </div>`;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function formatTime(dateStr) {
+  const d = new Date(dateStr + 'Z');
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+socket.on('new-message', (msg) => {
+  if (currentChatChannel && msg.channel_id === currentChatChannel.id) {
+    renderMessage(msg);
+  }
+});
+
+chatSendBtn.addEventListener('click', sendMessage);
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+chatInput.addEventListener('input', () => {
+  if (!currentChatChannel) return;
+  chatInput.style.height = 'auto';
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+  socket.emit('typing', { channelId: currentChatChannel.id });
+});
+
+socket.on('typing', (data) => {
+  if (!currentChatChannel) return;
+  if (data.userId === currentUser.id) return;
+  chatTyping.textContent = `${data.username} is typing...`;
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => { chatTyping.textContent = ''; }, 2000);
+});
+
+async function sendMessage() {
+  const content = chatInput.value.trim();
+  if (!content || !currentChatChannel || !token) return;
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+  chatTyping.textContent = '';
   try {
-    await startLocalAudio();
-    socket.emit('join', { userName });
+    await fetch(`${API}/api/channels/${currentChatChannel.id}/messages`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token },
+      body: JSON.stringify({ content })
+    });
+  } catch {}
+}
 
-    joinScreen.style.display = 'none';
-    roomScreen.style.display = 'flex';
+/* ====== SETUP SOCKET ====== */
+function setupSocket() {
+  socket.on('voice-offer', async (data) => { /* handled above */ });
+  socket.on('voice-answer', async (data) => { /* handled above */ });
+  socket.on('voice-ice', async (data) => { /* handled above */ });
+  socket.on('voice-users', (users) => { /* handled above */ });
+  socket.on('voice-user-joined', (data) => { /* handled above */ });
+  socket.on('voice-user-left', (data) => { /* handled above */ });
+  socket.on('new-message', (msg) => { /* handled above */ });
+  socket.on('typing', (data) => { /* handled above */ });
+}
 
-    createPeerTile('local', name, true);
-  } catch (err) {
-    alert('Could not access microphone. Please allow microphone access.');
-    console.error(err);
-  }
-});
-
-displayNameInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') joinBtn.click();
-});
-
-leaveBtn.addEventListener('click', () => {
-  if (localAnalyserInterval) clearInterval(localAnalyserInterval);
-  Object.values(remoteAnalyserIntervals).forEach(clearInterval);
-  socket.disconnect();
-  location.reload();
-});
-
-muteBtn.addEventListener('click', () => {
-  if (localStream) {
-    isMuted = !isMuted;
-    localStream.getAudioTracks().forEach(t => (t.enabled = !isMuted));
-    muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
-    muteBtn.classList.toggle('muted', isMuted);
-    const localTile = document.querySelector(`.peer-tile[data-peer="local"]`);
-    if (localTile) localTile.classList.toggle('muted', isMuted);
-  }
-});
-
-screenShareBtn.addEventListener('click', () => {
-  if (isScreenSharing) {
-    stopScreenShare();
+/* ====== START ====== */
+(async () => {
+  if (await checkAuth()) {
+    initApp();
   } else {
-    startScreenShare();
+    /* openid_token is not set or expired */
   }
-});
-
-micSelect.addEventListener('change', async () => {
-  if (!localStream) return;
-  await startLocalAudio(micSelect.value);
-  const peersList = Object.keys(peerConnections);
-  for (const peerId of peersList) {
-    if (peerConnections[peerId]) {
-      const pc = peerConnections[peerId];
-      const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
-      if (sender) {
-        const newTrack = localStream.getAudioTracks()[0];
-        await sender.replaceTrack(newTrack);
-      }
-    }
-  }
-});
-
-speakerSelect.addEventListener('change', () => {
-  const deviceId = speakerSelect.value;
-  document.querySelectorAll('audio').forEach(el => {
-    if (el.srcObject && typeof el.setSinkId === 'function') {
-      el.setSinkId(deviceId).catch(() => {});
-    }
-  });
-});
-
-navigator.mediaDevices.addEventListener('devicechange', getDevices);
-
-socket.on('room-users', (users) => {
-  userCount.textContent = `${users.length} online`;
-  users.forEach(u => {
-    if (u.id !== socket.id) {
-      peers[u.id] = u.name;
-      createPeerTile(u.id, u.name, false);
-      createAndSendOffer(u.id);
-    }
-  });
-});
-
-socket.on('user-joined', (data) => {
-  const count = Object.keys(peers).length + 1;
-  userCount.textContent = `${count} online`;
-  peers[data.id] = data.name;
-  createPeerTile(data.id, data.name, false);
-});
-
-socket.on('user-left', (data) => {
-  const count = Math.max(0, Object.keys(peers).length - 1);
-  userCount.textContent = `${count} online`;
-  cleanupPeer(data.id);
-  cleanupPeer(data.id, true);
-});
-
-socket.on('offer', (data) => handleOffer(data));
-socket.on('answer', (data) => handleAnswer(data));
-socket.on('ice-candidate', (data) => handleIceCandidate(data));
-
-socket.on('screen-share-offer', (data) => handleOffer(data, true));
-socket.on('screen-share-answer', (data) => handleAnswer(data, true));
-socket.on('screen-share-ice', (data) => handleIceCandidate(data, true));
+})();
