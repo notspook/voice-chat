@@ -11,6 +11,7 @@
   "dependencies": {
     "better-sqlite3": "^12.11.1",
     "express": "^4.18.2",
+    "jimp": "^1.6.1",
     "livekit-server-sdk": "^2.17.0",
     "socket.io": "^4.7.2"
   },
@@ -31,13 +32,9 @@
       "package.json"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "electron/icon.png"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
+      "target": "portable",
+      "icon": "electron/icon.png",
+      "signAndEditExecutable": false
     }
   }
 }
