@@ -3,6 +3,8 @@ let localStream = null;
 let screenStream = null;
 let peerConnections = {};
 let screenPeerConnections = {};
+let pendingCandidates = {};
+let screenPendingCandidates = {};
 let userName = '';
 let isMuted = false;
 let isScreenSharing = false;
@@ -140,11 +142,33 @@ function stopRemoteTalkingDetection(peerId) {
   }
 }
 
+function getPending(peerId, isScreen) {
+  const map = isScreen ? screenPendingCandidates : pendingCandidates;
+  if (!map[peerId]) map[peerId] = [];
+  return map[peerId];
+}
+
+function drainPending(peerId, isScreen) {
+  const map = isScreen ? screenPendingCandidates : pendingCandidates;
+  const candidates = map[peerId] || [];
+  delete map[peerId];
+  const connections = isScreen ? screenPeerConnections : peerConnections;
+  const pc = connections[peerId];
+  if (pc) {
+    candidates.forEach(c => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {}));
+  }
+}
+
 function createPeerConnection(peerId, stream, isScreen = false) {
   const config = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
     ]
   };
   const pc = new RTCPeerConnection(config);
@@ -303,6 +327,7 @@ async function handleOffer(data, isScreen = false) {
   const stream = isScreen ? screenStream : localStream;
   const pc = createPeerConnection(data.from, stream, isScreen);
   await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+  drainPending(data.from, isScreen);
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
   const eventType = isScreen ? 'screen-share-answer' : 'answer';
@@ -314,6 +339,7 @@ async function handleAnswer(data, isScreen = false) {
   const pc = connections[data.from];
   if (pc && pc.localDescription && pc.localDescription.type === 'offer') {
     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+    drainPending(data.from, isScreen);
   }
 }
 
@@ -321,7 +347,9 @@ async function handleIceCandidate(data, isScreen = false) {
   const connections = isScreen ? screenPeerConnections : peerConnections;
   const pc = connections[data.from];
   if (pc && pc.remoteDescription) {
-    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+    await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+  } else if (pc) {
+    getPending(data.from, isScreen).push(data.candidate);
   }
 }
 
