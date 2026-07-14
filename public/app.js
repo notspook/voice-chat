@@ -1,15 +1,15 @@
 const socket = io();
 let localStream = null;
 let screenStream = null;
-let audioContext = null;
-let analyserNode = null;
-let talkingCheckInterval = null;
 let peerConnections = {};
 let screenPeerConnections = {};
 let userName = '';
 let isMuted = false;
 let isScreenSharing = false;
 let peers = {};
+let remoteAnalysers = {};
+let localAnalyserInterval = null;
+let remoteAnalyserIntervals = {};
 
 const APP_COLORS = [
   '#f97583', '#79c0ff', '#56d364', '#d2a8ff', '#ffa657',
@@ -86,31 +86,58 @@ async function startLocalAudio(deviceId) {
   };
   localStream = await navigator.mediaDevices.getUserMedia(constraints);
   await getDevices();
-  startVoiceDetection();
+  startLocalTalkingDetection();
   return localStream;
 }
 
-function startVoiceDetection() {
-  if (audioContext) {
-    audioContext.close();
-  }
-  audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  const src = audioContext.createMediaStreamSource(localStream);
-  analyserNode = audioContext.createAnalyser();
-  analyserNode.fftSize = 256;
-  src.connect(analyserNode);
+function startLocalTalkingDetection() {
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = audioCtx.createMediaStreamSource(localStream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  src.connect(analyser);
 
-  if (talkingCheckInterval) clearInterval(talkingCheckInterval);
-  talkingCheckInterval = setInterval(() => {
-    const data = new Uint8Array(analyserNode.frequencyBinCount);
-    analyserNode.getByteFrequencyData(data);
+  if (localAnalyserInterval) clearInterval(localAnalyserInterval);
+  localAnalyserInterval = setInterval(() => {
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
     const avg = data.reduce((a, b) => a + b, 0) / data.length;
     const talking = avg > 15 && !isMuted;
-    const localTile = document.querySelector(`.peer-tile[data-peer="local"]`);
-    if (localTile) {
-      localTile.classList.toggle('talking', talking);
-    }
+    const tile = document.querySelector(`.peer-tile[data-peer="local"]`);
+    if (tile) tile.classList.toggle('talking', talking);
   }, 100);
+}
+
+function startRemoteTalkingDetection(peerId, stream) {
+  if (remoteAnalyserIntervals[peerId]) {
+    clearInterval(remoteAnalyserIntervals[peerId]);
+  }
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  src.connect(analyser);
+  remoteAnalysers[peerId] = { ctx: audioCtx, analyser };
+
+  remoteAnalyserIntervals[peerId] = setInterval(() => {
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((a, b) => a + b, 0) / data.length;
+    const talking = avg > 12;
+    const tile = document.querySelector(`.peer-tile[data-peer="${peerId}"]`);
+    if (tile) tile.classList.toggle('talking', talking);
+  }, 100);
+}
+
+function stopRemoteTalkingDetection(peerId) {
+  if (remoteAnalyserIntervals[peerId]) {
+    clearInterval(remoteAnalyserIntervals[peerId]);
+    delete remoteAnalyserIntervals[peerId];
+  }
+  if (remoteAnalysers[peerId]) {
+    remoteAnalysers[peerId].ctx.close();
+    delete remoteAnalysers[peerId];
+  }
 }
 
 function createPeerConnection(peerId, stream, isScreen = false) {
@@ -122,6 +149,10 @@ function createPeerConnection(peerId, stream, isScreen = false) {
   };
   const pc = new RTCPeerConnection(config);
   const connections = isScreen ? screenPeerConnections : peerConnections;
+
+  if (connections[peerId]) {
+    connections[peerId].close();
+  }
   connections[peerId] = pc;
 
   if (stream) {
@@ -158,13 +189,9 @@ function handleAudioTrack(peerId, stream) {
   const tile = document.querySelector(`.peer-tile[data-peer="${peerId}"]`);
   if (!tile) return;
   let audioEl = tile.querySelector('audio');
-  if (audioEl) {
-    audioEl.srcObject = stream;
-  } else {
+  if (!audioEl) {
     audioEl = document.createElement('audio');
-    audioEl.autoplay = true;
     audioEl.style.display = 'none';
-    audioEl.srcObject = stream;
     tile.appendChild(audioEl);
 
     const speakerId = speakerSelect.value;
@@ -172,6 +199,10 @@ function handleAudioTrack(peerId, stream) {
       audioEl.setSinkId(speakerId).catch(() => {});
     }
   }
+  audioEl.srcObject = stream;
+  audioEl.play().catch(() => {});
+
+  startRemoteTalkingDetection(peerId, stream);
 }
 
 function handleScreenTrack(peerId, stream) {
@@ -252,6 +283,7 @@ function cleanupPeer(peerId, isScreen = false) {
       container.classList.remove('active');
     }
   } else {
+    stopRemoteTalkingDetection(peerId);
     const tile = document.querySelector(`.peer-tile[data-peer="${peerId}"]`);
     if (tile) tile.remove();
     delete peers[peerId];
@@ -280,7 +312,7 @@ async function handleOffer(data, isScreen = false) {
 async function handleAnswer(data, isScreen = false) {
   const connections = isScreen ? screenPeerConnections : peerConnections;
   const pc = connections[data.from];
-  if (pc) {
+  if (pc && pc.localDescription && pc.localDescription.type === 'offer') {
     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
   }
 }
@@ -288,7 +320,7 @@ async function handleAnswer(data, isScreen = false) {
 async function handleIceCandidate(data, isScreen = false) {
   const connections = isScreen ? screenPeerConnections : peerConnections;
   const pc = connections[data.from];
-  if (pc) {
+  if (pc && pc.remoteDescription) {
     await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
   }
 }
@@ -312,7 +344,6 @@ async function startScreenShare() {
     localScreenPreview.style.display = 'flex';
 
     const peersList = Object.keys(peerConnections);
-    if (peersList.length === 0) return;
     for (const peerId of peersList) {
       await createAndSendOffer(peerId, true);
     }
@@ -384,7 +415,8 @@ displayNameInput.addEventListener('keydown', (e) => {
 });
 
 leaveBtn.addEventListener('click', () => {
-  if (talkingCheckInterval) clearInterval(talkingCheckInterval);
+  if (localAnalyserInterval) clearInterval(localAnalyserInterval);
+  Object.values(remoteAnalyserIntervals).forEach(clearInterval);
   socket.disconnect();
   location.reload();
 });
@@ -447,14 +479,15 @@ socket.on('room-users', (users) => {
 });
 
 socket.on('user-joined', (data) => {
-  userCount.textContent = `${Object.keys(peers).length + 1} online`;
+  const count = Object.keys(peers).length + 1;
+  userCount.textContent = `${count} online`;
   peers[data.id] = data.name;
   createPeerTile(data.id, data.name, false);
-  createAndSendOffer(data.id);
 });
 
 socket.on('user-left', (data) => {
-  userCount.textContent = `${Object.keys(peers).length - 1} online`;
+  const count = Math.max(0, Object.keys(peers).length - 1);
+  userCount.textContent = `${count} online`;
   cleanupPeer(data.id);
   cleanupPeer(data.id, true);
 });
