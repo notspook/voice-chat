@@ -1,35 +1,63 @@
 const socket = io();
 let localStream = null;
 let screenStream = null;
+let audioContext = null;
+let analyserNode = null;
+let talkingCheckInterval = null;
 let peerConnections = {};
 let screenPeerConnections = {};
 let userName = '';
-let roomId = '';
 let isMuted = false;
 let isScreenSharing = false;
+let peers = {};
+
+const APP_COLORS = [
+  '#f97583', '#79c0ff', '#56d364', '#d2a8ff', '#ffa657',
+  '#7ee787', '#a5d6ff', '#ff7b72', '#bbf0d4', '#f0883e'
+];
+
+function getColorForName(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return APP_COLORS[Math.abs(hash) % APP_COLORS.length];
+}
+
+function getInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
 
 const joinScreen = document.getElementById('join-screen');
 const roomScreen = document.getElementById('room-screen');
 const joinBtn = document.getElementById('join-btn');
 const leaveBtn = document.getElementById('leave-btn');
 const displayNameInput = document.getElementById('display-name');
-const roomNameInput = document.getElementById('room-name');
-const roomLabel = document.getElementById('room-label');
+const userCount = document.getElementById('user-count');
 const peerGrid = document.getElementById('peer-grid');
 const micSelect = document.getElementById('mic-select');
 const speakerSelect = document.getElementById('speaker-select');
 const muteBtn = document.getElementById('mute-btn');
 const screenShareBtn = document.getElementById('screen-share-btn');
+const localScreenPreview = document.getElementById('local-screen-preview');
+const localScreenVideo = document.getElementById('local-screen-video');
+const stopScreenBtn = document.getElementById('stop-screen-btn');
 
 async function getDevices() {
   const devices = await navigator.mediaDevices.enumerateDevices();
   micSelect.innerHTML = '';
   speakerSelect.innerHTML = '';
+  const currentMic = localStream?.getAudioTracks()[0]?.getSettings().deviceId;
   devices.forEach(d => {
     if (d.kind === 'audioinput') {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
       opt.textContent = d.label || `Microphone ${micSelect.length + 1}`;
+      if (d.deviceId === currentMic) opt.selected = true;
       micSelect.appendChild(opt);
     }
     if (d.kind === 'audiooutput') {
@@ -57,7 +85,32 @@ async function startLocalAudio(deviceId) {
     video: false
   };
   localStream = await navigator.mediaDevices.getUserMedia(constraints);
+  await getDevices();
+  startVoiceDetection();
   return localStream;
+}
+
+function startVoiceDetection() {
+  if (audioContext) {
+    audioContext.close();
+  }
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const src = audioContext.createMediaStreamSource(localStream);
+  analyserNode = audioContext.createAnalyser();
+  analyserNode.fftSize = 256;
+  src.connect(analyserNode);
+
+  if (talkingCheckInterval) clearInterval(talkingCheckInterval);
+  talkingCheckInterval = setInterval(() => {
+    const data = new Uint8Array(analyserNode.frequencyBinCount);
+    analyserNode.getByteFrequencyData(data);
+    const avg = data.reduce((a, b) => a + b, 0) / data.length;
+    const talking = avg > 15 && !isMuted;
+    const localTile = document.querySelector(`.peer-tile[data-peer="local"]`);
+    if (localTile) {
+      localTile.classList.toggle('talking', talking);
+    }
+  }, 100);
 }
 
 function createPeerConnection(peerId, stream, isScreen = false) {
@@ -73,9 +126,7 @@ function createPeerConnection(peerId, stream, isScreen = false) {
 
   if (stream) {
     stream.getTracks().forEach(track => {
-      if (localStream) {
-        pc.addTrack(track, stream);
-      }
+      pc.addTrack(track, stream);
     });
   }
 
@@ -87,25 +138,10 @@ function createPeerConnection(peerId, stream, isScreen = false) {
   };
 
   pc.ontrack = (e) => {
-    const container = isScreen
-      ? getOrCreateScreenContainer(peerId)
-      : getOrCreatePeerContainer(peerId, false);
-    let videoEl = container.querySelector('video');
-    if (!videoEl) {
-      videoEl = document.createElement('video');
-      videoEl.autoplay = true;
-      videoEl.playsInline = true;
-      container.appendChild(videoEl);
-
-      if (!isScreen) {
-        const audioEl = document.createElement('audio');
-        audioEl.autoplay = true;
-        audioEl.style.display = 'none';
-        container.appendChild(audioEl);
-      }
-    }
-    if (e.streams[0]) {
-      videoEl.srcObject = e.streams[0];
+    if (isScreen) {
+      handleScreenTrack(peerId, e.streams[0]);
+    } else {
+      handleAudioTrack(peerId, e.streams[0]);
     }
   };
 
@@ -118,26 +154,89 @@ function createPeerConnection(peerId, stream, isScreen = false) {
   return pc;
 }
 
-function getOrCreatePeerContainer(peerId, isLocal) {
-  let container = document.querySelector(`.peer-video-container[data-peer="${peerId}"]`);
-  if (!container) {
-    container = document.createElement('div');
-    container.className = `peer-video-container${isLocal ? ' local' : ''}`;
-    container.dataset.peer = peerId;
-    peerGrid.appendChild(container);
+function handleAudioTrack(peerId, stream) {
+  const tile = document.querySelector(`.peer-tile[data-peer="${peerId}"]`);
+  if (!tile) return;
+  let audioEl = tile.querySelector('audio');
+  if (audioEl) {
+    audioEl.srcObject = stream;
+  } else {
+    audioEl = document.createElement('audio');
+    audioEl.autoplay = true;
+    audioEl.style.display = 'none';
+    audioEl.srcObject = stream;
+    tile.appendChild(audioEl);
+
+    const speakerId = speakerSelect.value;
+    if (speakerId && typeof audioEl.setSinkId === 'function') {
+      audioEl.setSinkId(speakerId).catch(() => {});
+    }
   }
-  return container;
 }
 
-function getOrCreateScreenContainer(peerId) {
-  let container = document.querySelector(`.peer-video-container[data-screen="${peerId}"]`);
+function handleScreenTrack(peerId, stream) {
+  let container = document.querySelector(`.screen-share-container[data-screen="${peerId}"]`);
   if (!container) {
     container = document.createElement('div');
-    container.className = 'peer-video-container screen-share';
+    container.className = 'screen-share-container';
     container.dataset.screen = peerId;
-    peerGrid.appendChild(container);
+    const header = document.createElement('div');
+    header.className = 'screen-share-header';
+    const name = peers[peerId] || 'Someone';
+    header.innerHTML = `<span>${name}'s screen</span>`;
+    container.appendChild(header);
+    const video = document.createElement('video');
+    video.autoplay = true;
+    video.playsInline = true;
+    video.style.width = '100%';
+    container.appendChild(video);
+    peerGrid.parentNode.insertBefore(container, peerGrid.nextSibling);
   }
-  return container;
+  container.classList.add('active');
+  const video = container.querySelector('video');
+  if (video) video.srcObject = stream;
+}
+
+function createPeerTile(id, name, isLocal) {
+  const existing = document.querySelector(`.peer-tile[data-peer="${id}"]`);
+  if (existing) return existing;
+
+  const tile = document.createElement('div');
+  tile.className = 'peer-tile';
+  tile.dataset.peer = id;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'peer-avatar';
+  avatar.style.background = getColorForName(name);
+  avatar.textContent = getInitials(name);
+
+  const label = document.createElement('div');
+  label.className = 'peer-name-label';
+  label.textContent = isLocal ? `${name} (you)` : name;
+
+  const indicators = document.createElement('div');
+  indicators.className = 'peer-indicators';
+
+  const talkingDot = document.createElement('div');
+  talkingDot.className = 'talking-indicator';
+  indicators.appendChild(talkingDot);
+
+  const mutedBadge = document.createElement('div');
+  mutedBadge.className = 'muted-indicator';
+  mutedBadge.textContent = 'MUTED';
+  indicators.appendChild(mutedBadge);
+
+  const screenBadge = document.createElement('div');
+  screenBadge.className = 'screen-share-badge';
+  screenBadge.textContent = 'SHARING';
+  indicators.appendChild(screenBadge);
+
+  tile.appendChild(avatar);
+  tile.appendChild(label);
+  tile.appendChild(indicators);
+
+  peerGrid.appendChild(tile);
+  return tile;
 }
 
 function cleanupPeer(peerId, isScreen = false) {
@@ -147,11 +246,15 @@ function cleanupPeer(peerId, isScreen = false) {
     delete connections[peerId];
   }
   if (isScreen) {
-    const el = document.querySelector(`[data-screen="${peerId}"]`);
-    if (el) el.remove();
+    const container = document.querySelector(`.screen-share-container[data-screen="${peerId}"]`);
+    if (container) {
+      container.querySelector('video').srcObject = null;
+      container.classList.remove('active');
+    }
   } else {
-    const el = document.querySelector(`[data-peer="${peerId}"]`);
-    if (el && !el.classList.contains('local')) el.remove();
+    const tile = document.querySelector(`.peer-tile[data-peer="${peerId}"]`);
+    if (tile) tile.remove();
+    delete peers[peerId];
   }
 }
 
@@ -194,9 +297,9 @@ async function startScreenShare() {
   try {
     screenStream = await navigator.mediaDevices.getDisplayMedia({
       video: {
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        frameRate: { ideal: 60 }
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 }
       },
       audio: false
     });
@@ -205,14 +308,21 @@ async function startScreenShare() {
     screenShareBtn.textContent = 'Stop Sharing';
     screenShareBtn.classList.add('screen-active');
 
-    const peers = Object.keys(peerConnections);
-    for (const peerId of peers) {
+    localScreenVideo.srcObject = screenStream;
+    localScreenPreview.style.display = 'flex';
+
+    const peersList = Object.keys(peerConnections);
+    if (peersList.length === 0) return;
+    for (const peerId of peersList) {
       await createAndSendOffer(peerId, true);
     }
 
     screenStream.getVideoTracks()[0].onended = () => {
       stopScreenShare();
     };
+
+    const localTile = document.querySelector(`.peer-tile[data-peer="local"]`);
+    if (localTile) localTile.classList.add('screen-sharing');
 
   } catch (err) {
     console.log('Screen share cancelled or failed:', err);
@@ -227,9 +337,14 @@ function stopScreenShare() {
   isScreenSharing = false;
   screenShareBtn.textContent = 'Share Screen';
   screenShareBtn.classList.remove('screen-active');
+  localScreenPreview.style.display = 'none';
+  localScreenVideo.srcObject = null;
 
-  const screenEls = document.querySelectorAll('[data-screen]');
-  screenEls.forEach(el => el.remove());
+  document.querySelectorAll('.screen-share-container').forEach(el => {
+    const video = el.querySelector('video');
+    if (video) video.srcObject = null;
+    el.classList.remove('active');
+  });
 
   Object.keys(screenPeerConnections).forEach(peerId => {
     if (screenPeerConnections[peerId]) {
@@ -237,39 +352,39 @@ function stopScreenShare() {
       delete screenPeerConnections[peerId];
     }
   });
+
+  const localTile = document.querySelector(`.peer-tile[data-peer="local"]`);
+  if (localTile) localTile.classList.remove('screen-sharing');
 }
+
+stopScreenBtn.addEventListener('click', stopScreenShare);
 
 joinBtn.addEventListener('click', async () => {
   const name = displayNameInput.value.trim();
-  const room = roomNameInput.value.trim();
-  if (!name || !room) return;
+  if (!name) return;
 
   userName = name;
-  roomId = room;
 
   try {
-    await getDevices();
     await startLocalAudio();
-
-    socket.emit('join-room', { roomId, userName });
+    socket.emit('join', { userName });
 
     joinScreen.style.display = 'none';
     roomScreen.style.display = 'flex';
-    roomLabel.textContent = `Room: ${room}`;
 
-    const localContainer = getOrCreatePeerContainer('local', true);
-    const nameLabel = document.createElement('div');
-    nameLabel.className = 'peer-name';
-    nameLabel.textContent = `${name} (you)`;
-    localContainer.appendChild(nameLabel);
-
+    createPeerTile('local', name, true);
   } catch (err) {
     alert('Could not access microphone. Please allow microphone access.');
     console.error(err);
   }
 });
 
+displayNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') joinBtn.click();
+});
+
 leaveBtn.addEventListener('click', () => {
+  if (talkingCheckInterval) clearInterval(talkingCheckInterval);
   socket.disconnect();
   location.reload();
 });
@@ -279,7 +394,9 @@ muteBtn.addEventListener('click', () => {
     isMuted = !isMuted;
     localStream.getAudioTracks().forEach(t => (t.enabled = !isMuted));
     muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
-    muteBtn.classList.toggle('active', isMuted);
+    muteBtn.classList.toggle('muted', isMuted);
+    const localTile = document.querySelector(`.peer-tile[data-peer="local"]`);
+    if (localTile) localTile.classList.toggle('muted', isMuted);
   }
 });
 
@@ -292,10 +409,10 @@ screenShareBtn.addEventListener('click', () => {
 });
 
 micSelect.addEventListener('change', async () => {
-  if (!roomId) return;
+  if (!localStream) return;
   await startLocalAudio(micSelect.value);
-  const peers = Object.keys(peerConnections);
-  for (const peerId of peers) {
+  const peersList = Object.keys(peerConnections);
+  for (const peerId of peersList) {
     if (peerConnections[peerId]) {
       const pc = peerConnections[peerId];
       const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
@@ -309,36 +426,35 @@ micSelect.addEventListener('change', async () => {
 
 speakerSelect.addEventListener('change', () => {
   const deviceId = speakerSelect.value;
-  document.querySelectorAll('video, audio').forEach(el => {
+  document.querySelectorAll('audio').forEach(el => {
     if (el.srcObject && typeof el.setSinkId === 'function') {
       el.setSinkId(deviceId).catch(() => {});
     }
   });
 });
 
+navigator.mediaDevices.addEventListener('devicechange', getDevices);
+
 socket.on('room-users', (users) => {
+  userCount.textContent = `${users.length} online`;
   users.forEach(u => {
     if (u.id !== socket.id) {
-      const container = getOrCreatePeerContainer(u.id, false);
-      const nameLabel = document.createElement('div');
-      nameLabel.className = 'peer-name';
-      nameLabel.textContent = u.name;
-      container.appendChild(nameLabel);
+      peers[u.id] = u.name;
+      createPeerTile(u.id, u.name, false);
       createAndSendOffer(u.id);
     }
   });
 });
 
 socket.on('user-joined', (data) => {
-  const container = getOrCreatePeerContainer(data.id, false);
-  const nameLabel = document.createElement('div');
-  nameLabel.className = 'peer-name';
-  nameLabel.textContent = data.name;
-  container.appendChild(nameLabel);
+  userCount.textContent = `${Object.keys(peers).length + 1} online`;
+  peers[data.id] = data.name;
+  createPeerTile(data.id, data.name, false);
   createAndSendOffer(data.id);
 });
 
 socket.on('user-left', (data) => {
+  userCount.textContent = `${Object.keys(peers).length - 1} online`;
   cleanupPeer(data.id);
   cleanupPeer(data.id, true);
 });

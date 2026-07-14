@@ -9,20 +9,16 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-const rooms = {};
+const users = {};
 
 io.on('connection', (socket) => {
-  socket.on('join-room', ({ roomId, userName }) => {
+  socket.on('join', ({ userName }) => {
+    const roomId = 'global';
     socket.join(roomId);
-    socket.data.roomId = roomId;
     socket.data.userName = userName;
 
-    if (!rooms[roomId]) {
-      rooms[roomId] = [];
-    }
-    rooms[roomId].push({ id: socket.id, name: userName });
-
-    socket.emit('room-users', rooms[roomId]);
+    users[socket.id] = { id: socket.id, name: userName };
+    socket.emit('room-users', Object.values(users));
     socket.to(roomId).emit('user-joined', { id: socket.id, name: userName });
 
     socket.on('offer', ({ to, offer }) => {
@@ -50,12 +46,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-      if (rooms[roomId]) {
-        rooms[roomId] = rooms[roomId].filter(u => u.id !== socket.id);
-        if (rooms[roomId].length === 0) {
-          delete rooms[roomId];
-        }
-      }
+      delete users[socket.id];
       socket.to(roomId).emit('user-left', { id: socket.id });
     });
   });

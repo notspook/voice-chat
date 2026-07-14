@@ -13,19 +13,19 @@
       <label>Display Name</label>
       <input type="text" id="display-name" placeholder="Enter your name" autocomplete="off">
     </div>
-    <div class="form-group">
-      <label>Room Name</label>
-      <input type="text" id="room-name" placeholder="Room name" autocomplete="off">
-    </div>
-    <button id="join-btn">Join Room</button>
+    <button id="join-btn">Join</button>
   </div>
 
   <div id="room-screen" style="display:none">
     <div id="top-bar">
-      <span id="room-label"></span>
+      <span id="user-count">0 online</span>
       <button id="leave-btn">Leave</button>
     </div>
     <div id="peer-grid"></div>
+    <div id="local-screen-preview" style="display:none">
+      <video id="local-screen-video" autoplay playsinline muted></video>
+      <button id="stop-screen-btn">Stop Sharing</button>
+    </div>
     <div id="controls">
       <div id="device-selects">
         <div class="device-group">
@@ -38,7 +38,7 @@
         </div>
       </div>
       <div id="control-buttons">
-        <button id="mute-btn" class="control-btn active">Mute</button>
+        <button id="mute-btn" class="control-btn">Mute</button>
         <button id="screen-share-btn" class="control-btn">Share Screen</button>
       </div>
     </div>
