@@ -16,7 +16,7 @@ function createWindow() {
     minHeight: 600,
     title: 'Ripple',
     backgroundColor: '#060A10',
-    icon: path.join(__dirname, 'icon.png'),
+    icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
