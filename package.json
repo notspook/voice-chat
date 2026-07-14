@@ -1,14 +1,43 @@
 {
-  "name": "voice-chat",
+  "name": "ripple",
   "version": "1.0.0",
   "description": "Browser-based voice chat with noise suppression and screen sharing",
-  "main": "server.js",
+  "main": "electron/main.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "electron:dev": "NODE_ENV=development electron .",
+    "electron:build": "electron-builder"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",
     "express": "^4.18.2",
+    "livekit-server-sdk": "^2.17.0",
     "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.ripple.voicechat",
+    "productName": "Ripple",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "server.js",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "electron/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
   }
 }

@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
+const { AccessToken } = require('livekit-server-sdk');
 
 const db = new Database('data.db');
 db.pragma('journal_mode=WAL');
@@ -127,44 +128,33 @@ app.post('/api/channels/:id/messages', (req, res) => {
   res.json(msg);
 });
 
-const voiceUsers = {};
-const userSessions = {};
+app.post('/api/livekit/token', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  const session = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(auth);
+  if (!session) return res.status(401).json({ error: 'Invalid token' });
+  const user = db.prepare('SELECT id, username, avatar_color FROM users WHERE id = ?').get(session.user_id);
+  if (!user) return res.status(401).json({ error: 'User not found' });
+  const { room } = req.body;
+  if (!room) return res.status(400).json({ error: 'Room required' });
+  const at = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, {
+    identity: user.username,
+    name: user.username,
+    metadata: JSON.stringify({ username: user.username, avatar_color: user.avatar_color }),
+  });
+  at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
+  res.json({ token: at.toJwt(), url: process.env.LIVEKIT_URL });
+});
 
 io.on('connection', (socket) => {
   socket.on('auth', (token) => {
     const session = db.prepare('SELECT u.id, u.username, u.avatar_color FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?').get(token);
     if (session) {
       socket.data.user = { id: session.id, username: session.username, avatar_color: session.avatar_color };
-      userSessions[socket.id] = session.id;
       socket.emit('authed', session);
     } else {
       socket.emit('authed', null);
     }
-  });
-
-  socket.on('channels:join', (channelId) => {
-    if (!socket.data.user) return;
-    if (socket.data.channel) {
-      socket.to(`voice:${socket.data.channel}`).emit('voice-user-left', { id: socket.id });
-      socket.leave(`voice:${socket.data.channel}`);
-    }
-    socket.data.channel = channelId;
-    socket.join(`voice:${channelId}`);
-    if (!voiceUsers[channelId]) voiceUsers[channelId] = [];
-    voiceUsers[channelId] = voiceUsers[channelId].filter(u => u.id !== socket.id);
-    voiceUsers[channelId].push({ id: socket.id, user: socket.data.user });
-    socket.to(`voice:${channelId}`).emit('voice-user-joined', { id: socket.id, user: socket.data.user });
-    socket.emit('voice-users', voiceUsers[channelId]);
-  });
-
-  socket.on('voice-offer', ({ to, offer }) => {
-    io.to(to).emit('voice-offer', { from: socket.id, offer, user: socket.data.user });
-  });
-  socket.on('voice-answer', ({ to, answer }) => {
-    io.to(to).emit('voice-answer', { from: socket.id, answer });
-  });
-  socket.on('voice-ice', ({ to, candidate }) => {
-    io.to(to).emit('voice-ice', { from: socket.id, candidate });
   });
 
   socket.on('chat:join', (channelId) => {
@@ -173,16 +163,6 @@ io.on('connection', (socket) => {
 
   socket.on('typing', ({ channelId }) => {
     socket.to(`chat:${channelId}`).emit('typing', { userId: socket.data.user?.id, username: socket.data.user?.username });
-  });
-
-  socket.on('disconnect', () => {
-    const channelId = socket.data.channel;
-    if (channelId && voiceUsers[channelId]) {
-      voiceUsers[channelId] = voiceUsers[channelId].filter(u => u.id !== socket.id);
-      socket.to(`voice:${channelId}`).emit('voice-user-left', { id: socket.id });
-      if (voiceUsers[channelId].length === 0) delete voiceUsers[channelId];
-    }
-    delete userSessions[socket.id];
   });
 });
 

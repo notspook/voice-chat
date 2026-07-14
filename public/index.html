@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <style>
 /* ============================================================
    RIPPLE — design tokens
@@ -588,10 +589,8 @@ let currentChatChannel = null;     // text channel joined for chat
 let voiceChannel = null;           // voice channel we are connected to
 const joinedChatRooms = new Set();
 const renderedMsgIds = new Set();
-const profiles = {};               // username -> profile payload (self + received via mesh)
+const profiles = {};               // username -> profile payload
 const userStatuses = {};           // username -> 'online'|'idle'|'dnd'
-const peers = {};                  // peerId -> {pc, dc, polite, makingOffer, ignoreOffer, pendingIce, user, ...}
-let voiceRoster = [];              // [{id, user}] for our voice channel (incl. self)
 let isMuted=false, isDeafened=false, pttMode=false, pttHeld=false;
 let audioCtx=null, micStream=null, micSource=null, micGain=null, mixDest=null, localAnalyser=null, sfxGain=null;
 let outboundTrack=null, outboundStream=null;
@@ -601,6 +600,11 @@ let lastTypingSent = 0;
 let pendingImage = null;           // dataURL staged in composer
 const remoteSounds = {};           // soundId -> {id,name,dataUrl,by}
 const sbIncoming = {};             // soundId -> {chunks:[], total, meta}
+/* LiveKit */
+let livekitRoom = null;
+let livekitParticipants = [];      // full participant list incl. self
+const remoteAudioEls = {};        // identity -> HTMLAudioElement
+const remoteScreens = {};         // identity -> video element
 
 /* ============================================================
    Toasts
@@ -744,21 +748,16 @@ function connectSocket(){
       const first = firstText || channels[0];
       if(first) openChannel(first);
     }else{
-      // Reconnected: our socket.id changed — rejoin rooms and rebuild voice mesh.
+      // Reconnected: rejoin chat rooms and reconnect LiveKit.
       if(currentChatChannel){ socket.emit('chat:join', currentChatChannel.id); joinedChatRooms.add(currentChatChannel.id); syncChat(); }
-      if(voiceChannel){
-        teardownAllPeers();
-        $('tile-grid').innerHTML = '';
-        addSelfTile();
-        socket.emit('channels:join', voiceChannel.id);
+      if(voiceChannel && !livekitRoom){
+        joinVoice(voiceChannel);
       }
     }
   });
 
   socket.on('disconnect', ()=>{
     $('conn-banner').classList.add('show');
-    teardownAllPeers();
-    updateConnStatus();
   });
 
   /* ---- chat events ---- */
@@ -767,76 +766,6 @@ function connectSocket(){
     if(!currentChatChannel || !data || data.userId === currentUser.id) return;
     typingUsers[data.userId] = { username: data.username, ts: Date.now() };
     renderTyping();
-  });
-
-  /* ---- voice roster events ---- */
-  socket.on('voice-users', (users)=>{
-    if(!voiceChannel) return;
-    voiceRoster = users;
-    // We are the newcomer: we initiate to everyone already here (deterministic — no glare).
-    users.forEach(u=>{
-      if(u.id !== socket.id){
-        ensureTile(u.id, u.user);
-        initiatePeer(u.id, u.user);
-      }
-    });
-    refreshVoiceCounts();
-  });
-
-  socket.on('voice-user-joined', (data)=>{
-    if(!voiceChannel || data.id === socket.id) return;
-    voiceRoster = voiceRoster.filter(u=>u.id!==data.id).concat([{id:data.id, user:data.user}]);
-    ensureTile(data.id, data.user);
-    // Do NOT initiate — the newcomer offers to us. This removes offer glare.
-    sfx.peerJoin();
-    refreshVoiceCounts();
-  });
-
-  socket.on('voice-user-left', (data)=>{
-    if(!voiceChannel) return;
-    voiceRoster = voiceRoster.filter(u=>u.id!==data.id);
-    destroyPeer(data.id);
-    const tile = document.querySelector(`.vtile[data-id="${CSS.escape(data.id)}"]`);
-    if(tile) tile.remove();
-    removeRemoteScreen(data.id);
-    sfx.peerLeave();
-    refreshVoiceCounts();
-  });
-
-  /* ---- WebRTC signaling (perfect negotiation) ---- */
-  socket.on('voice-offer', async ({from, offer, user})=>{
-    if(!voiceChannel) return;
-    if(user) ensureTile(from, user);
-    if(!outboundTrack){ const ok = await ensureMedia(); if(!ok) return; }
-    const p = getPeer(from, user);
-    const pc = p.pc;
-    const collision = p.makingOffer || pc.signalingState !== 'stable';
-    p.ignoreOffer = !p.polite && collision;
-    if(p.ignoreOffer) return;
-    try{
-      await pc.setRemoteDescription(offer);
-      drainIce(p);
-      await pc.setLocalDescription();
-      socket.emit('voice-answer', { to: from, answer: pc.localDescription });
-    }catch(err){ console.warn('offer handling failed', err); }
-  });
-
-  socket.on('voice-answer', async ({from, answer})=>{
-    const p = peers[from];
-    if(!p) return;
-    try{ await p.pc.setRemoteDescription(answer); drainIce(p); }
-    catch(err){ console.warn('answer failed', err); }
-  });
-
-  socket.on('voice-ice', async ({from, candidate})=>{
-    const p = peers[from];
-    if(!p || !candidate) return;
-    if(p.pc.remoteDescription && p.pc.remoteDescription.type){
-      try{ await p.pc.addIceCandidate(candidate); }
-      catch(err){ if(!p.ignoreOffer) console.warn('ice failed', err); }
-    }else{
-      p.pendingIce.push(candidate);   // queue until remoteDescription is set (old code dropped these)
-    }
   });
 }
 
@@ -1254,13 +1183,10 @@ function closePopovers(){
 document.addEventListener('click', ()=>{ closePopovers(); closeProfilePopout(); closeStatusMenu(); });
 
 /* ============================================================
-   VOICE — media pipeline
-   Mic → GainNode → MediaStreamDestination → one stable outbound
-   track per session. Device switches swap the source node, so
-   peers never need a track replacement and never glitch.
+   VOICE — media pipeline (LiveKit)
    ============================================================ */
 async function ensureMedia(){
-  if(outboundTrack && outboundTrack.readyState === 'live') return true;
+  if(micStream && micStream.active) return true;
   try{
     const ctx = ensureCtx();
     await acquireMic();
@@ -1274,8 +1200,6 @@ async function ensureMedia(){
     micGain.connect(localAnalyser);
     outboundStream = mixDest.stream;
     outboundTrack = outboundStream.getAudioTracks()[0];
-    applyTxState();
-    startVADLoop();
     await refreshDevices();
     return true;
   }catch(err){
@@ -1303,7 +1227,7 @@ async function acquireMic(){
   let stream;
   try{ stream = await navigator.mediaDevices.getUserMedia(micConstraints()); }
   catch(err){
-    if(settings.micId){ // stored device may be unplugged — fall back to default
+    if(settings.micId){
       settings.micId = ''; store.set('settings', settings);
       stream = await navigator.mediaDevices.getUserMedia(micConstraints());
     } else throw err;
@@ -1320,16 +1244,25 @@ async function swapMic(){
   catch{ toast('Could not switch to that microphone.','err'); }
 }
 
-/* single outbound gate for mute / deafen / PTT */
 function applyTxState(){
   const transmitting = !isMuted && !isDeafened && (!pttMode || pttHeld);
   if(outboundTrack) outboundTrack.enabled = transmitting;
+  if(livekitRoom && livekitRoom.localParticipant){
+    try{
+      const pub = Array.from(livekitRoom.localParticipant.trackPublications.values())
+        .find(p => p.source === 'microphone');
+      if(pub) pub.setMuted(!transmitting);
+    }catch{}
+    livekitRoom.localParticipant.setAttributes({
+      deafened: isDeafened ? 'true' : '',
+      muted: !transmitting ? 'true' : ''
+    });
+  }
   const self = tileFor('local');
   if(self){
-    self.classList.toggle('muted', isMuted || isDeafened || (pttMode && !pttHeld));
+    self.classList.toggle('muted', !transmitting);
     self.classList.toggle('deafened', isDeafened);
   }
-  broadcastMeta({ t:'state', muted: isMuted || (pttMode && !pttHeld), deafened: isDeafened });
   syncControlButtons();
   renderMembers();
   refreshSidebarVoiceMembers();
@@ -1384,32 +1317,67 @@ document.addEventListener('keyup', (e)=>{
 function isTypingTarget(t){ return t && (t.tagName==='TEXTAREA' || t.tagName==='INPUT' || t.isContentEditable); }
 
 /* ============================================================
-   VOICE — join / leave
+   VOICE — LiveKit connection / join / leave
    ============================================================ */
+const { Room, RoomEvent } = LivekitClient;
+
+async function getLiveKitToken(roomName){
+  const res = await fetch('/api/livekit/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': token },
+    body: JSON.stringify({ room: roomName })
+  });
+  if(!res.ok) throw new Error('Failed to get LiveKit token');
+  return res.json();
+}
+
 async function joinVoice(channel){
-  if(voiceChannel && voiceChannel.id === channel.id) return;   // already here; just viewing
+  if(voiceChannel && voiceChannel.id === channel.id) return;
+  if(voiceChannel) localTeardown();
   const ok = await ensureMedia();
   if(!ok) return;
-  if(voiceChannel) localTeardown();       // server moves us between rooms on channels:join
   voiceChannel = channel;
+  sfx.join();
+  setConnStatus('ok', 'Connecting to LiveKit…');
+  updateVoiceDock();
   $('tile-grid').innerHTML = '';
   addSelfTile();
-  voiceRoster = [{ id: socket.id, user: currentUser }];
-  socket.emit('channels:join', channel.id);
-  sfx.join();
-  setConnStatus('ok', 'Connecting…');
-  updateVoiceDock();
+  try{
+    const { token, url } = await getLiveKitToken(channel.name);
+    livekitRoom = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      videoCaptureDefaults: { resolution: { width: 1920, height: 1080 } },
+    });
+    setupLiveKitEvents();
+    await livekitRoom.connect(url, token);
+    if(outboundTrack){
+      await livekitRoom.localParticipant.publishTrack(outboundTrack, { source: 'microphone' });
+      applyTxState();
+    }
+    livekitRoom.localParticipant.setAttributes({ deafened: isDeafened ? 'true' : '' });
+    setConnStatus('ok', 'Connected · LiveKit');
+    $('vd-status').textContent = 'Voice connected';
+  }catch(err){
+    console.warn('LiveKit connect failed', err);
+    toast('Could not connect to voice server.','err');
+    setConnStatus('bad','Connection failed');
+    voiceChannel = null;
+    updateVoiceDock();
+    return;
+  }
   refreshVoiceCounts();
 }
 
 function localTeardown(){
-  teardownAllPeers();
+  disconnectLiveKit();
   stopScreenShare(true);
   $('tile-grid').innerHTML = '';
   $('screen-theater').innerHTML = '';
   $('screen-theater').classList.remove('show');
   $('remote-audio').innerHTML = '';
-  voiceRoster = [];
+  Object.keys(remoteAudioEls).forEach(k=>delete remoteAudioEls[k]);
+  Object.keys(remoteScreens).forEach(k=>delete remoteScreens[k]);
 }
 
 function leaveVoice(silent){
@@ -1422,9 +1390,6 @@ function leaveVoice(silent){
   setConnStatus('bad','Not connected');
   if(!silent){
     sfx.leave();
-    // The backend only detaches a socket from a voice room when it joins another room
-    // or disconnects — there is no leave event. A quick reconnect cleanly removes us
-    // for everyone else; the reconnect handler re-auths and rejoins the chat room.
     try{ socket.disconnect(); socket.connect(); }catch{}
   }
   if(wasViewing && currentChatChannel) openChannel(currentChatChannel);
@@ -1436,6 +1401,113 @@ $('vd-leave').addEventListener('click', ()=>leaveVoice(false));
 function updateVoiceDock(){
   $('voice-dock').classList.toggle('show', !!voiceChannel);
   if(voiceChannel) $('vd-channel').textContent = voiceChannel.name;
+}
+
+function disconnectLiveKit(){
+  if(!livekitRoom) return;
+  try{ livekitRoom.disconnect(); }catch{}
+  livekitRoom = null;
+}
+
+/* ============================================================
+   LiveKit event handlers
+   ============================================================ */
+function setupLiveKitEvents(){
+  if(!livekitRoom) return;
+
+  livekitRoom.on(RoomEvent.ParticipantConnected, (participant)=>{
+    ensureTileForParticipant(participant);
+    sfx.peerJoin();
+    refreshVoiceCounts();
+  });
+
+  livekitRoom.on(RoomEvent.ParticipantDisconnected, (participant)=>{
+    const id = participant.identity;
+    const tile = document.querySelector(`.vtile[data-id="${CSS.escape(id)}"]`);
+    if(tile) tile.remove();
+    const audioEl = remoteAudioEls[id];
+    if(audioEl){ audioEl.srcObject = null; audioEl.remove(); delete remoteAudioEls[id]; }
+    removeRemoteScreen(id);
+    sfx.peerLeave();
+    refreshVoiceCounts();
+  });
+
+  livekitRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant)=>{
+    if(track.kind === 'audio'){
+      const audioEl = document.createElement('audio');
+      audioEl.autoplay = true;
+      audioEl.srcObject = new MediaStream([track.mediaStreamTrack]);
+      audioEl.muted = isDeafened;
+      $('remote-audio').appendChild(audioEl);
+      remoteAudioEls[participant.identity] = audioEl;
+      applySink(audioEl);
+      audioEl.play().catch(()=>{});
+    }else if(track.kind === 'video'){
+      // Screen share video
+      const existing = document.querySelector(`.screen-box[data-identity="${CSS.escape(participant.identity)}"]`);
+      let box;
+      if(!existing){
+        box = buildScreenBox(participant.identity, `${participant.name || participant.identity}'s screen`, false);
+        box.dataset.identity = participant.identity;
+      }else{
+        box = existing;
+      }
+      const v = box.querySelector('video');
+      v.srcObject = new MediaStream([track.mediaStreamTrack]);
+      remoteScreens[participant.identity] = v;
+      const tile = tileFor(participant.identity);
+      if(tile) tile.classList.add('sharing');
+    }
+  });
+
+  livekitRoom.on(RoomEvent.TrackUnsubscribed, (track, publication, participant)=>{
+    if(track.kind === 'audio'){
+      const audioEl = remoteAudioEls[participant.identity];
+      if(audioEl){ audioEl.srcObject = null; audioEl.remove(); delete remoteAudioEls[participant.identity]; }
+    }else if(track.kind === 'video'){
+      removeRemoteScreen(participant.identity);
+    }
+  });
+
+  livekitRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers)=>{
+    // Reset all indicators first
+    setTalking('local', false);
+    const all = [...livekitRoom.remoteParticipants.values()];
+    all.forEach(p=>setTalking(p.identity, false));
+    // Set only active speakers
+    speakers.forEach(s=>setTalking(s.identity, true));
+  });
+
+  livekitRoom.on(RoomEvent.DataReceived, (payload, participant)=>{
+    if(!participant) return;
+    let m;
+    try{ m = JSON.parse(new TextDecoder().decode(payload)); }catch{ return; }
+    switch(m.t){
+      case 'sb-clip': receiveSoundChunk(m); break;
+      case 'sb-play': playSoundById(m.id, m.username || participant.name || 'Someone'); break;
+    }
+  });
+}
+
+function ensureTileForParticipant(participant){
+  if(tileFor(participant.identity)) return;
+  const name = participant.name || participant.identity;
+  let meta = {};
+  try{ meta = JSON.parse(participant.metadata || '{}'); }catch{}
+  const user = { username: name, avatar_color: meta.avatar_color || '#58a6ff' };
+  buildTile(participant.identity, user, false);
+}
+
+function refreshLiveKitRoster(){
+  if(!livekitRoom) return;
+  livekitParticipants = [...livekitRoom.remoteParticipants.values()].map(p=>({
+    id: p.identity,
+    identity: p.identity,
+    name: p.name || p.identity,
+    metadata: p.metadata,
+    isSpeaking: p.isSpeaking,
+    audioLevel: p.audioLevel
+  }));
 }
 
 /* ============================================================
@@ -1490,7 +1562,7 @@ function buildTile(id, user, isSelf){
 }
 
 function refreshVoiceCounts(){
-  const n = voiceChannel ? Math.max(voiceRoster.length, document.querySelectorAll('.vtile').length) : 0;
+  const n = voiceChannel ? document.querySelectorAll('.vtile').length : 0;
   if(activeChannel && voiceChannel && activeChannel.id === voiceChannel.id){
     $('mh-sub').textContent = `Voice channel · ${n} connected`;
   }
@@ -1507,14 +1579,22 @@ function refreshSidebarVoiceMembers(){
   document.querySelectorAll('.vc-members').forEach(box=>{
     box.innerHTML = '';
     if(!voiceChannel || box.dataset.for !== String(voiceChannel.id)) return;
-    voiceRoster.forEach(u=>{
+    const members = livekitRoom ? [...livekitRoom.remoteParticipants.values()] : [];
+    if(!livekitRoom || !livekitRoom.localParticipant) return;
+    const allParticipants = [livekitRoom.localParticipant, ...members];
+    allParticipants.forEach(p=>{
+      const identity = p.identity;
+      const name = p.name || identity;
+      let meta = {};
+      try{ meta = JSON.parse(p.metadata || '{}'); }catch{}
+      const isSelf = identity === livekitRoom.localParticipant.identity;
+      const remoteMuted = p.attributes && (p.attributes.muted === 'true' || p.attributes.deafened === 'true');
+      const muted = isSelf ? (isMuted || isDeafened || (pttMode && !pttHeld)) : remoteMuted;
       const row = el('div','vc-member');
-      row.dataset.peer = u.id === socket.id ? 'local' : u.id;
-      const mini = makeAvatar(u.user.username, u.user.avatar_color, 'mini-av');
+      row.dataset.peer = isSelf ? 'local' : identity;
+      const mini = makeAvatar(name, meta.avatar_color || '#58a6ff', 'mini-av');
       row.appendChild(mini);
-      row.appendChild(el('span', null, u.user.username));
-      const isSelfRow = u.id === socket.id;
-      const muted = isSelfRow ? (isMuted || isDeafened || (pttMode && !pttHeld)) : !!(peers[u.id] && peers[u.id].remoteMuted);
+      row.appendChild(el('span', null, name));
       if(muted){ const m = el('span','m-mute'); m.appendChild(svgUse('i-mic-off')); row.appendChild(m); }
       box.appendChild(row);
     });
@@ -1522,141 +1602,22 @@ function refreshSidebarVoiceMembers(){
 }
 
 /* ============================================================
-   VOICE — WebRTC (perfect negotiation + ICE queueing)
+   VOICE — LiveKit connection status
    ============================================================ */
-const ICE_SERVERS = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' }
-];
-
-function getPeer(peerId, user){
-  if(peers[peerId]) return peers[peerId];
-  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-  const p = {
-    pc, id: peerId, user: user || null,
-    polite: String(socket.id) < String(peerId),   // deterministic role per pair
-    makingOffer: false, ignoreOffer: false, pendingIce: [],
-    dc: null, remoteMuted: false, remoteDeafened: false,
-    screenStreamId: null, micStreamId: null, audioEl: null, failTimer: null
-  };
-  peers[peerId] = p;
-
-  pc.addTrack(outboundTrack, outboundStream);
-  if(screenTrack && screenTrack.readyState==='live'){
-    p.screenSender = pc.addTrack(screenTrack, screenStream);
-    tuneScreenSender(p.screenSender);
-    if(screenAudioTrack) p.screenAudioSender = pc.addTrack(screenAudioTrack, screenStream);
-  }
-
-  pc.onnegotiationneeded = async ()=>{
-    try{
-      p.makingOffer = true;
-      await pc.setLocalDescription();
-      socket.emit('voice-offer', { to: peerId, offer: pc.localDescription });
-    }catch(err){ console.warn('negotiation failed', err); }
-    finally{ p.makingOffer = false; }
-  };
-  pc.onicecandidate = (e)=>{ if(e.candidate) socket.emit('voice-ice', { to: peerId, candidate: e.candidate }); };
-  pc.ontrack = (e)=>handleTrack(p, e);
-  pc.onconnectionstatechange = ()=>{
-    updateConnStatus();
-    if(pc.connectionState === 'connected'){
-      if(p.failTimer){ clearTimeout(p.failTimer); p.failTimer = null; }
-    }else if(pc.connectionState === 'failed'){
-      try{ pc.restartIce(); }catch{}
-      if(!p.failTimer) p.failTimer = setTimeout(()=>{
-        if(p.pc.connectionState !== 'connected' && voiceChannel){
-          // hard rebuild as last resort
-          const u = p.user; destroyPeer(peerId);
-          if(voiceRoster.some(r=>r.id===peerId)) initiatePeer(peerId, u);
-        }
-      }, 6000);
-    }
-  };
-  pc.ondatachannel = (e)=>setupDataChannel(p, e.channel);
-  return p;
-}
-
-function initiatePeer(peerId, user){
-  const existing = peers[peerId];
-  if(existing){ existing.user = existing.user || user; return; }
-  const p = getPeer(peerId, user);
-  // initiator opens the metadata channel; addTrack above triggers negotiationneeded
-  setupDataChannel(p, p.pc.createDataChannel('meta'));
-}
-
-function drainIce(p){
-  while(p.pendingIce.length){
-    const c = p.pendingIce.shift();
-    p.pc.addIceCandidate(c).catch(()=>{});
-  }
-}
-
-function destroyPeer(peerId){
-  const p = peers[peerId];
-  if(!p) return;
-  if(p.failTimer) clearTimeout(p.failTimer);
-  stopRemoteVAD(peerId);
-  try{ if(p.dc) p.dc.close(); }catch{}
-  try{ p.pc.close(); }catch{}
-  if(p.audioEl){ p.audioEl.srcObject = null; p.audioEl.remove(); }
-  removeRemoteScreen(peerId);
-  delete peers[peerId];
-  updateConnStatus();
-}
-
-function teardownAllPeers(){
-  Object.keys(peers).forEach(destroyPeer);
-}
-
-function handleTrack(p, e){
-  const stream = e.streams[0] || new MediaStream([e.track]);
-  if(e.track.kind === 'video'){
-    p.screenStreamId = p.screenStreamId || stream.id;
-    showRemoteScreen(p, stream);
-    e.track.addEventListener('ended', ()=>removeRemoteScreen(p.id));
-    return;
-  }
-  // audio: is this the screen-share audio or the mic?
-  const isScreenAudio = (p.screenStreamId && stream.id === p.screenStreamId) ||
-                        (p.micStreamId && stream.id !== p.micStreamId);
-  if(isScreenAudio){
-    const box = document.querySelector(`.screen-box[data-peer="${CSS.escape(p.id)}"] video`);
-    if(box){ box.srcObject = stream; box.muted = isDeafened; }
-    return;
-  }
-  p.micStreamId = stream.id;
-  if(!p.audioEl){
-    p.audioEl = document.createElement('audio');
-    p.audioEl.autoplay = true;
-    $('remote-audio').appendChild(p.audioEl);
-  }
-  p.audioEl.srcObject = stream;
-  p.audioEl.muted = isDeafened;
-  applySink(p.audioEl);
-  p.audioEl.play().catch(()=>{});
-  startRemoteVAD(p.id, stream);
-}
-
 function updateConnStatus(){
   if(!voiceChannel){ setConnStatus('bad','Not connected'); $('vd-status').textContent='Voice'; return; }
-  const total = Object.keys(peers).length;
-  const connected = Object.values(peers).filter(p=>p.pc.connectionState==='connected').length;
-  const othersInRoom = Math.max(0, voiceRoster.length - 1);
-  if(othersInRoom === 0){
-    setConnStatus('ok', 'Connected — you are the only one here');
-    $('vd-status').textContent = 'Voice connected';
-  }else if(connected === othersInRoom){
-    setConnStatus('ok', `Connected · ${connected} peer${connected!==1?'s':''}`);
-    $('vd-status').textContent = 'Voice connected';
-  }else if(connected > 0){
-    setConnStatus('warn', `Connected · ${connected}/${othersInRoom} peers`);
-    $('vd-status').textContent = 'Voice connected';
+  if(!livekitRoom || livekitRoom.state === 'disconnected'){
+    setConnStatus('bad','Disconnected');
+  }else if(livekitRoom.state === 'connecting'){
+    setConnStatus('warn','Connecting…');
   }else{
-    setConnStatus('warn', `Connecting to ${othersInRoom} peer${othersInRoom!==1?'s':''}…`);
-    $('vd-status').textContent = 'Connecting…';
+    const count = livekitRoom.remoteParticipants.size;
+    if(count === 0){
+      setConnStatus('ok', 'Connected — you are the only one here');
+    }else{
+      setConnStatus('ok', `Connected · ${count} other${count!==1?'s':''}`);
+    }
+    $('vd-status').textContent = 'Voice connected';
   }
   $('vd-signal').classList.toggle('warn', $('conn-ind').classList.contains('warn'));
   $('vd-signal').classList.toggle('bad', $('conn-ind').classList.contains('bad'));
@@ -1667,48 +1628,13 @@ function setConnStatus(kind, text){
 }
 
 /* ============================================================
-   VOICE — talking detection (one shared loop, no context leaks)
+   VOICE — talking (triggered by LiveKit ActiveSpeakersChanged)
    ============================================================ */
-const remoteVAD = {}; // peerId -> {analyser, src}
-let vadRunning = false;
-
-function startVADLoop(){
-  if(vadRunning) return;
-  vadRunning = true;
-  const buf = new Uint8Array(128);
-  setInterval(()=>{
-    if(localAnalyser && outboundTrack){
-      localAnalyser.getByteFrequencyData(buf);
-      const avg = buf.reduce((a,b)=>a+b,0)/buf.length;
-      setTalking('local', avg > 14 && outboundTrack.enabled && !isDeafened);
-    }
-    for(const [peerId, v] of Object.entries(remoteVAD)){
-      v.analyser.getByteFrequencyData(buf);
-      const avg = buf.reduce((a,b)=>a+b,0)/buf.length;
-      setTalking(peerId, avg > 12 && !isDeafened);
-    }
-  }, 90);
-}
 function setTalking(id, talking){
   const tile = tileFor(id);
   if(tile) tile.classList.toggle('talking', talking);
   const row = document.querySelector(`.vc-member[data-peer="${CSS.escape(id)}"]`);
   if(row) row.classList.toggle('speaking', talking);
-}
-function startRemoteVAD(peerId, stream){
-  stopRemoteVAD(peerId);
-  try{
-    const ctx = ensureCtx();
-    const src = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser(); analyser.fftSize = 256;
-    src.connect(analyser);
-    remoteVAD[peerId] = { analyser, src };
-  }catch{}
-}
-function stopRemoteVAD(peerId){
-  const v = remoteVAD[peerId];
-  if(v){ try{ v.src.disconnect(); }catch{} delete remoteVAD[peerId]; }
-  setTalking(peerId, false);
 }
 
 /* ============================================================
@@ -1757,52 +1683,46 @@ function applySink(a){
 }
 
 /* ============================================================
-   Screen share — sent to peers with renegotiation, tuned encoder
+   Screen share — LiveKit
    ============================================================ */
 $('tb-share').addEventListener('click', ()=>{ screenTrack ? stopScreenShare() : startScreenShare(); });
 
 async function startScreenShare(){
   if(!voiceChannel){ toast('Join a voice channel first.','warn'); return; }
+  if(!livekitRoom){ toast('Not connected to voice.','err'); return; }
   try{
     screenStream = await navigator.mediaDevices.getDisplayMedia({
       video: { width:{ideal:1920}, height:{ideal:1080}, frameRate:{ideal:30, max:60} },
       audio: settings.shareAudio
     });
-  }catch{ return; } // user cancelled the picker
+  }catch{ return; }
   screenTrack = screenStream.getVideoTracks()[0];
   screenAudioTrack = screenStream.getAudioTracks()[0] || null;
   try{ screenTrack.contentHint = 'detail'; }catch{}
-  broadcastMeta({ t:'screen', on:true, streamId: screenStream.id });
-  Object.values(peers).forEach(p=>{
-    p.screenSender = p.pc.addTrack(screenTrack, screenStream);
-    tuneScreenSender(p.screenSender);
-    if(screenAudioTrack) p.screenAudioSender = p.pc.addTrack(screenAudioTrack, screenStream);
-  });
+  await livekitRoom.localParticipant.publishTrack(screenTrack, { source: 'screen_share' });
+  if(screenAudioTrack){
+    await livekitRoom.localParticipant.publishTrack(screenAudioTrack, { source: 'screen_share' });
+  }
   screenTrack.addEventListener('ended', ()=>stopScreenShare());
-  showLocalScreenPreview();
+  removeRemoteScreen('local');
+  const box = buildScreenBox('local', 'Your screen', true);
+  box.querySelector('video').srcObject = screenStream;
   const self = tileFor('local'); if(self) self.classList.add('sharing');
   $('tb-share').classList.add('accent-on');
   $('tb-share').querySelector('span').textContent = 'Stop sharing';
 }
 
-async function tuneScreenSender(sender){
-  try{
-    const params = sender.getParameters();
-    params.degradationPreference = 'maintain-resolution';   // keep text crisp
-    params.encodings = params.encodings && params.encodings.length ? params.encodings : [{}];
-    params.encodings[0].maxBitrate = 4_000_000;
-    await sender.setParameters(params);
-  }catch{}
-}
-
 function stopScreenShare(silent){
   if(!screenTrack) return;
-  Object.values(peers).forEach(p=>{
-    try{ if(p.screenSender) p.pc.removeTrack(p.screenSender); }catch{}
-    try{ if(p.screenAudioSender) p.pc.removeTrack(p.screenAudioSender); }catch{}
-    p.screenSender = p.screenAudioSender = null;
-  });
-  if(!silent) broadcastMeta({ t:'screen', on:false });
+  if(livekitRoom){
+    screenStream.getVideoTracks().forEach(t=>{
+      const pub = livekitRoom.localParticipant.getTrackPublication(t.label);
+      if(pub) livekitRoom.localParticipant.unpublishTrack(t);
+    });
+    if(screenAudioTrack){
+      livekitRoom.localParticipant.unpublishTrack(screenAudioTrack);
+    }
+  }
   screenStream.getTracks().forEach(t=>t.stop());
   screenStream = null; screenTrack = null; screenAudioTrack = null;
   removeRemoteScreen('local');
@@ -1811,21 +1731,6 @@ function stopScreenShare(silent){
   $('tb-share').querySelector('span').textContent = 'Share screen';
 }
 
-function showLocalScreenPreview(){
-  removeRemoteScreen('local');
-  const box = buildScreenBox('local', 'Your screen', true);
-  box.querySelector('video').srcObject = screenStream;
-}
-function showRemoteScreen(p, stream){
-  let box = document.querySelector(`.screen-box[data-peer="${CSS.escape(p.id)}"]`);
-  if(!box) box = buildScreenBox(p.id, `${p.user ? p.user.username : 'Peer'}'s screen`, false);
-  const v = box.querySelector('video');
-  v.classList.add('remote');
-  v.srcObject = stream;
-  v.muted = isDeafened;
-  applySink(v);
-  const tile = tileFor(p.id); if(tile) tile.classList.add('sharing');
-}
 function buildScreenBox(peerId, label, isLocal){
   const theater = $('screen-theater');
   const box = el('div','screen-box'); box.dataset.peer = peerId;
@@ -1855,77 +1760,12 @@ function removeRemoteScreen(peerId){
 }
 
 /* ============================================================
-   Peer metadata mesh (data channels)
-   Carries mute state, status, profiles, and soundboard clips —
-   none of which the backend stores — to everyone in the channel.
+   Soundboard — clips sent over LiveKit data channel
    ============================================================ */
-function setupDataChannel(p, dc){
-  p.dc = dc;
-  dc.onopen = ()=>{
-    sendMeta(p, { t:'hello',
-      username: currentUser.username,
-      status: myStatus,
-      muted: isMuted || (pttMode && !pttHeld),
-      deafened: isDeafened,
-      profile: sanitizeProfile(myProfile),
-      sharing: !!screenTrack,
-      screenStreamId: screenStream ? screenStream.id : null
-    });
-    shareSoundLibrary(p);
-  };
-  dc.onmessage = (e)=>{
-    let m; try{ m = JSON.parse(e.data); }catch{ return; }
-    handleMeta(p, m);
-  };
+function broadcastMetaLiveKit(obj){
+  if(!livekitRoom || !livekitRoom.localParticipant) return;
+  try{ livekitRoom.localParticipant.publishData(JSON.stringify(obj), 1); }catch{}
 }
-function sendMeta(p, obj){
-  try{ if(p.dc && p.dc.readyState==='open') p.dc.send(JSON.stringify(obj)); }catch{}
-}
-function broadcastMeta(obj){
-  Object.values(peers).forEach(p=>sendMeta(p, obj));
-}
-function handleMeta(p, m){
-  const uname = p.user ? p.user.username : m.username;
-  switch(m.t){
-    case 'hello':
-      if(m.username && !p.user) p.user = { username: m.username };
-      if(m.profile) receiveProfile(m.username || uname, m.profile);
-      if(m.status) { userStatuses[m.username || uname] = m.status; renderMembers(); }
-      p.remoteMuted = !!m.muted; p.remoteDeafened = !!m.deafened;
-      if(m.sharing && m.screenStreamId) p.screenStreamId = m.screenStreamId;
-      applyRemoteState(p);
-      break;
-    case 'state':
-      p.remoteMuted = !!m.muted; p.remoteDeafened = !!m.deafened;
-      applyRemoteState(p);
-      break;
-    case 'status':
-      if(uname){ userStatuses[uname] = m.status; renderMembers(); }
-      break;
-    case 'profile':
-      if(uname) receiveProfile(uname, m.profile);
-      break;
-    case 'screen':
-      if(m.on){ p.screenStreamId = m.streamId || p.screenStreamId; }
-      else removeRemoteScreen(p.id);
-      break;
-    case 'sb-lib': break; // metadata only; clips follow
-    case 'sb-clip': receiveSoundChunk(p, m); break;
-    case 'sb-play': playSoundById(m.id, uname || 'Someone'); break;
-  }
-}
-function applyRemoteState(p){
-  const tile = tileFor(p.id);
-  if(tile){
-    tile.classList.toggle('muted-remote', p.remoteMuted);
-    tile.classList.toggle('deafened', p.remoteDeafened);
-  }
-  refreshSidebarVoiceMembers();
-}
-
-/* ============================================================
-   Soundboard — clips replicated to the channel over data channels
-   ============================================================ */
 let mySounds = store.get('sounds', []); // [{id,name,dataUrl}]
 const SB_CHUNK = 14000, SB_MAX_CHARS = 260000, SB_MAX_MY = 8;
 
@@ -1948,7 +1788,7 @@ function buildSoundboardPopover(){
     pad.appendChild(el('small', null, s.mine ? 'yours' : 'from '+(s.by||'a member')));
     pad.addEventListener('click', ()=>{
       playSoundById(s.id, 'you');
-      broadcastMeta({ t:'sb-play', id: s.id, username: currentUser.username });
+      broadcastMetaLiveKit({ t:'sb-play', id: s.id, username: currentUser.username });
     });
     if(s.mine){
       const del = el('span','sb-del','✕'); del.title='Remove';
@@ -1972,20 +1812,17 @@ $('sound-file').addEventListener('change', async ()=>{
   const sound = { id: 'sb_'+Date.now()+'_'+Math.random().toString(36).slice(2,7), name: f.name.replace(/\.[^.]+$/,'').slice(0,24) || 'Sound', dataUrl };
   mySounds.push(sound);
   store.set('sounds', mySounds);
-  Object.values(peers).forEach(p=>sendSoundClip(p, sound));
+  broadcastSoundClip(sound);
   toast(`"${sound.name}" added and shared with the channel.`);
   closePopovers();
 });
-function shareSoundLibrary(p){
-  mySounds.forEach(s=>sendSoundClip(p, s));
-}
-function sendSoundClip(p, sound){
+function broadcastSoundClip(sound){
   const total = Math.ceil(sound.dataUrl.length / SB_CHUNK);
   for(let i=0; i<total; i++){
-    sendMeta(p, { t:'sb-clip', id: sound.id, name: sound.name, by: currentUser.username, seq: i, total, data: sound.dataUrl.slice(i*SB_CHUNK, (i+1)*SB_CHUNK) });
+    broadcastMetaLiveKit({ t:'sb-clip', id: sound.id, name: sound.name, by: currentUser.username, seq: i, total, data: sound.dataUrl.slice(i*SB_CHUNK, (i+1)*SB_CHUNK) });
   }
 }
-function receiveSoundChunk(p, m){
+function receiveSoundChunk(m){
   if(remoteSounds[m.id] || mySounds.some(s=>s.id===m.id)) return;
   let entry = sbIncoming[m.id];
   if(!entry) entry = sbIncoming[m.id] = { chunks: new Array(m.total), got: 0, name: m.name, by: m.by };
@@ -2109,7 +1946,7 @@ function setMyStatus(s){
   myStatus = s; store.set('status', s);
   userStatuses[currentUser.username] = s;
   renderUserPanel();
-  broadcastMeta({ t:'status', status: s, username: currentUser.username });
+  broadcastMetaLiveKit({ t:'status', status: s, username: currentUser.username });
   renderMembers();
 }
 
@@ -2132,10 +1969,15 @@ function renderMembers(){
   const list = $('members-list');
   if(!list) return;
   list.innerHTML = '';
-  if(voiceChannel && voiceRoster.length){
+  if(voiceChannel && livekitRoom && livekitRoom.remoteParticipants.size > 0){
     $('members-title').textContent = `In voice — ${voiceChannel.name}`;
-    voiceRoster.forEach(u=>{
-      list.appendChild(memberRow(u.user.username, u.user.avatar_color, u.id===socket.id ? 'you' : ''));
+    const all = [livekitRoom.localParticipant, ...livekitRoom.remoteParticipants.values()];
+    all.forEach(p=>{
+      const name = p.name || p.identity;
+      let meta = {};
+      try{ meta = JSON.parse(p.metadata || '{}'); }catch{}
+      const isSelf = p.identity === livekitRoom.localParticipant.identity;
+      list.appendChild(memberRow(name, meta.avatar_color, isSelf ? 'you' : ''));
     });
   }else{
     $('members-title').textContent = 'Members';
@@ -2236,7 +2078,7 @@ function paneProfile(){
     myProfile = sanitizeProfile(myProfile);
     store.set('profile', myProfile);
     profiles[currentUser.username] = myProfile;
-    broadcastMeta({ t:'profile', profile: myProfile, username: currentUser.username });
+    broadcastMetaLiveKit({ t:'profile', profile: myProfile, username: currentUser.username });
     renderUserPanel();
     const t = tileFor('local');
     if(t){ receiveProfileSelfRefresh(); }
