@@ -1,7 +1,7 @@
 {
   "name": "ripple",
-  "version": "1.0.0",
-  "description": "Browser-based voice chat with noise suppression and screen sharing",
+  "version": "2.0.0",
+  "description": "Voice chat with servers, DMs, calls, music bot, screen sharing",
   "main": "electron/main.js",
   "scripts": {
     "start": "node server.js",
@@ -9,10 +9,13 @@
     "electron:build": "electron-builder"
   },
   "dependencies": {
+    "@livekit/rtc-node": "^0.13.0",
     "better-sqlite3": "^12.11.1",
     "express": "^4.18.2",
+    "ffmpeg-static": "^5.2.0",
     "jimp": "^1.6.1",
     "livekit-server-sdk": "^2.17.0",
+    "play-dl": "^1.9.7",
     "socket.io": "^4.7.2"
   },
   "devDependencies": {
@@ -22,19 +25,8 @@
   "build": {
     "appId": "com.ripple.voicechat",
     "productName": "Ripple",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "electron/**/*",
-      "server.js",
-      "public/**/*",
-      "package.json"
-    ],
-    "win": {
-      "target": "portable",
-      "icon": "electron/icon.ico",
-      "signAndEditExecutable": false
-    }
+    "directories": { "output": "dist" },
+    "files": ["electron/**/*", "server.js", "public/**/*", "package.json"],
+    "win": { "target": "portable", "icon": "electron/icon.ico", "signAndEditExecutable": false }
   }
 }

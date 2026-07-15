@@ -10,7 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 <style>
 /* ============================================================
-   RIPPLE — design tokens
+   RIPPLE â€” design tokens
    ============================================================ */
 :root{
   --accent-h:168;
@@ -58,7 +58,7 @@ img{max-width:100%}
 html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{animation-duration:.001s !important;transition-duration:.001s !important}
 
 /* ============================================================
-   AUTH — sonar ripple hero
+   AUTH â€” sonar ripple hero
    ============================================================ */
 #auth-screen{
   position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
@@ -104,6 +104,79 @@ html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{an
 #conn-banner.show{display:flex}
 #shell{flex:1;display:flex;min-height:0}
 
+
+/* -------- Server rail -------- */
+#rail{width:68px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 0;background:var(--bg-0);border-right:1px solid var(--border-soft);overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+#rail::-webkit-scrollbar{display:none}
+.rail-item{position:relative;width:44px;height:44px;border-radius:50%;background:var(--bg-2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--text-dim);transition:border-radius .18s,background .18s,color .18s;flex-shrink:0;user-select:none}
+.rail-item:hover{border-radius:16px;background:var(--bg-3);color:var(--text)}
+.rail-item.active{border-radius:16px;background:var(--accent-soft);color:var(--accent-strong)}
+.rail-item.active::before{content:'';position:absolute;left:-12px;top:50%;transform:translateY(-50%);width:4px;height:26px;border-radius:0 4px 4px 0;background:var(--accent)}
+.rail-item.has-unread::after{content:'';position:absolute;left:-12px;top:50%;transform:translateY(-50%);width:4px;height:8px;border-radius:0 4px 4px 0;background:var(--text)}
+.rail-item.active.has-unread::after{display:none}
+.rail-item svg{width:22px;height:22px}
+.rail-item.add{color:var(--ok);background:var(--bg-1);border:1px dashed var(--border)}
+.rail-item.add:hover{background:var(--ok);color:#06251A;border-color:transparent}
+.rail-sep{width:26px;height:2px;border-radius:2px;background:var(--border);flex-shrink:0}
+/* -------- DM list -------- */
+.dm-row{display:flex;align-items:center;gap:9px;padding:5px 8px;min-height:38px;border-radius:6px;cursor:pointer;color:var(--text-dim);transition:background .13s}
+.dm-row:hover{background:var(--bg-2);color:var(--text)}
+.dm-row.active{background:var(--accent-soft);color:var(--text)}
+.dm-row .avatar{width:30px;height:30px;font-size:11px;position:relative;flex-shrink:0}
+.dm-row .dm-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:500}
+.dm-row .ch-unread{width:8px;height:8px;border-radius:50%;background:var(--text)}
+#home-hint{font-size:12.5px;color:var(--text-faint);padding:10px 8px;line-height:1.5}
+.side-action{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:6px;font-size:13.5px;font-weight:600;color:var(--text-dim);transition:background .13s,color .13s}
+.side-action:hover{background:var(--bg-2);color:var(--text)}
+.side-action svg{width:15px;height:15px}
+/* -------- Context menu -------- */
+#ctx-menu{position:fixed;z-index:400;min-width:190px;background:var(--bg-3);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-pop);padding:5px;display:flex;flex-direction:column}
+.ctx-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;font-size:13.5px;font-weight:500;text-align:left;color:var(--text-dim)}
+.ctx-item:hover{background:var(--accent-soft);color:var(--text)}
+.ctx-item.danger:hover{background:var(--danger-soft);color:var(--danger)}
+.ctx-item svg{width:15px;height:15px;flex-shrink:0}
+.ctx-sep{height:1px;background:var(--border-soft);margin:4px 6px}
+/* -------- Call UI -------- */
+#call-modal{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(6px)}
+.call-card{width:340px;background:var(--bg-2);border:1px solid var(--border);border-radius:18px;padding:30px 26px;text-align:center;box-shadow:var(--shadow-pop)}
+.call-card .avatar{width:84px;height:84px;font-size:28px;margin:0 auto 14px;animation:callPulse 1.6s ease-in-out infinite}
+@keyframes callPulse{0%,100%{box-shadow:0 0 0 0 var(--accent-glow)}50%{box-shadow:0 0 0 14px transparent}}
+.call-card h3{font-family:var(--font-display);font-size:19px;margin-bottom:4px}
+.call-card p{color:var(--text-dim);font-size:13.5px;margin-bottom:22px}
+.call-actions{display:flex;gap:12px;justify-content:center}
+.call-btn{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:transform .12s,filter .12s}
+.call-btn:hover{transform:scale(1.07);filter:brightness(1.1)}
+.call-btn svg{width:24px;height:24px}
+.call-btn.accept{background:var(--ok);color:#06251A}
+.call-btn.decline{background:var(--danger);color:#fff}
+.call-log{display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-3);color:var(--text-dim);font-size:13.5px;width:fit-content}
+.call-log svg{width:16px;height:16px;color:var(--accent)}
+#mh-timer{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--accent-strong);background:var(--accent-soft);border-radius:6px;padding:2px 8px;margin-left:4px}
+#vd-timer{font-size:11px;color:var(--text-faint);font-variant-numeric:tabular-nums}
+/* -------- Music bar -------- */
+#music-bar{display:none;align-items:center;gap:10px;margin:0 18px 10px;padding:9px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg-3);font-size:13.5px}
+#music-bar.show{display:flex}
+#music-bar .mb-icon{color:var(--accent);display:flex;animation:spin 4s linear infinite}
+#music-bar.paused .mb-icon{animation-play-state:paused}
+@keyframes spin{to{transform:rotate(360deg)}}
+#music-bar .mb-icon svg{width:17px;height:17px}
+#mb-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+#mb-sub{color:var(--text-faint);font-size:12px;flex-shrink:0}
+#music-bar button{color:var(--text-dim);display:flex;padding:4px;border-radius:6px}
+#music-bar button:hover{color:var(--text);background:var(--bg-4)}
+#music-bar button svg{width:16px;height:16px}
+/* -------- Profile extras -------- */
+.pc-banner{background-size:cover;background-position:center}
+.pc-uid{font-size:11px;color:var(--text-faint);margin-top:2px;font-variant-numeric:tabular-nums}
+.pc-actions{display:flex;gap:8px;margin-top:12px}
+.pc-actions .btn{flex:1;font-size:13px;padding:7px 10px}
+.grad-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+.grad-row input[type=color]{width:38px;height:30px;border:none;border-radius:6px;background:none;padding:0;cursor:pointer}
+.member-row.offline{opacity:.45}
+.vtile.bot .avatar{background:linear-gradient(135deg,var(--accent),hsl(calc(var(--accent-h) + 40) 70% 45%)) !important;color:#06251A}
+.members-sec{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-faint);margin:14px 4px 6px}
+.members-sec:first-child{margin-top:0}
+
 /* -------- Sidebar -------- */
 #sidebar{width:264px;flex-shrink:0;display:flex;flex-direction:column;background:var(--bg-1);border-right:1px solid var(--border-soft)}
 #brand{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border-soft);min-height:54px}
@@ -111,14 +184,18 @@ html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{an
 #brand .name{font-family:var(--font-display);font-weight:700;font-size:17px;letter-spacing:-.3px}
 #brand .hint{margin-left:auto;font-size:11px;color:var(--text-faint);background:var(--bg-2);border:1px solid var(--border-soft);border-radius:6px;padding:3px 7px;cursor:pointer;transition:color .15s}
 #brand .hint:hover{color:var(--text-dim)}
-#channel-list{flex:1;overflow-y:auto;padding:14px 10px}
+#channel-list{flex:1;overflow-y:auto;padding:12px 8px}
 .channel-group{margin-bottom:18px}
 .channel-group-header{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-faint);padding:0 8px;margin-bottom:5px}
-.channel-item{display:flex;align-items:center;gap:9px;padding:7px 9px;margin:1px 0;border-radius:8px;cursor:pointer;font-size:14.5px;font-weight:500;color:var(--text-dim);transition:background .13s,color .13s;user-select:none;position:relative}
+.channel-item{display:flex;align-items:center;gap:8px;padding:5px 8px;margin:0;min-height:30px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;color:var(--text-dim);transition:background .13s,color .13s;user-select:none;position:relative}
 .channel-item:hover{background:var(--bg-2);color:var(--text)}
 .channel-item.active{background:var(--accent-soft);color:var(--text)}
 .channel-item.active::before{content:'';position:absolute;left:-10px;top:20%;bottom:20%;width:3px;border-radius:3px;background:var(--accent)}
-.channel-item .ch-icon{width:18px;flex-shrink:0;color:var(--text-faint);display:flex}
+.channel-item .ch-icon{width:16px;flex-shrink:0;color:var(--text-faint);display:flex}
+.ch-icon svg{width:16px;height:16px}
+.channel-item .ch-unread{width:7px;height:7px;border-radius:50%;background:var(--text);margin-left:auto}
+.channel-item .ch-add{margin-left:auto;color:var(--text-faint);display:none}
+.sb-label svg{width:13px;height:13px}
 .channel-item.active .ch-icon{color:var(--accent)}
 .channel-item .ch-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .channel-item .ch-live{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
@@ -430,6 +507,14 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <symbol id="i-expand" viewBox="0 0 24 24"><path fill="currentColor" d="M4 4h6v2H6v4H4V4Zm10 0h6v6h-2V6h-4V4ZM4 14h2v4h4v2H4v-6Zm14 0h2v6h-6v-2h4v-4Z"/></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path fill="currentColor" d="M3 6a1 1 0 0 1 1-1h16a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm0 6a1 1 0 0 1 1-1h16a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm1 5a1 1 0 1 0 0 2h16a1 1 0 1 0 0-2H4Z"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path fill="currentColor" d="M5.3 5.3a1 1 0 0 1 1.4 0L12 10.59l5.3-5.3a1 1 0 1 1 1.4 1.42L13.41 12l5.3 5.3a1 1 0 0 1-1.42 1.4L12 13.41l-5.3 5.3a1 1 0 0 1-1.4-1.42L10.59 12l-5.3-5.3a1 1 0 0 1 0-1.4Z"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path fill="currentColor" d="M6.6 3c.4 0 .77.24.92.61l1.54 3.6a1 1 0 0 1-.23 1.11L7.4 9.75a12.5 12.5 0 0 0 6.85 6.85l1.43-1.43a1 1 0 0 1 1.11-.23l3.6 1.54c.37.15.61.52.61.92V21a2 2 0 0 1-2 2A16 16 0 0 1 3 7a2 2 0 0 1 2-2h1.6Z"/></symbol>
+    <symbol id="i-phone-off" viewBox="0 0 24 24"><path fill="currentColor" d="m4.7 3.3 16 16-1.4 1.4-3.06-3.05A15.94 15.94 0 0 1 5 23h-.01A2 2 0 0 1 3 21v-2.4c0-.4.24-.77.61-.92l3.6-1.54a1 1 0 0 1 1.11.23l1.43 1.43c1.05-.53 2.03-1.2 2.92-1.98L3.3 6.5 4.7 3.3Zm14.7 1.1A2 2 0 0 1 21 6.4V9a1 1 0 0 1-.61.92l-3.6 1.54a1 1 0 0 1-1.11-.23l-1.43-1.43c-.3.15-.58.31-.86.49L8.2 5.1c2-.9 4.2-1.4 6.5-1.4h.01l4.69.7Z" opacity=".9"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><path fill="currentColor" d="M8 3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H8Zm0 2h8v10H8V5ZM4 7a1 1 0 0 0-1 1v11a3 3 0 0 0 3 3h9a1 1 0 1 0 0-2H6a1 1 0 0 1-1-1V8a1 1 0 0 0-1-1Z"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path fill="currentColor" d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H8.4L4 21.6A1 1 0 0 1 2.4 20.8V5a2 2 0 0 1 2-2Zm0 2v13l3-2h13V5H4Z"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path fill="currentColor" d="M11.36 2.23a1 1 0 0 1 1.28 0l8.5 7.08a1 1 0 0 1-1.28 1.54L19 10.13V20a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-5h-2v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9.87l-.86.72a1 1 0 1 1-1.28-1.54l8.5-7.08ZM7 8.46V19h2v-5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v5h2V8.46l-5-4.17-5 4.17Z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4h4v16H7V4Zm6 0h4v16h-4V4Z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4.6c0-.8.87-1.3 1.55-.88l11.05 6.9a1.04 1.04 0 0 1 0 1.76L8.55 19.28A1.04 1.04 0 0 1 7 18.4V4.6Z"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><path fill="currentColor" d="M5 4.6c0-.8.87-1.3 1.55-.88L15 8.9V4.5a1 1 0 0 1 2 0v15a1 1 0 1 1-2 0v-4.4l-8.45 5.18A1.04 1.04 0 0 1 5 19.4V4.6Z"/></symbol>
     <symbol id="i-attach" viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 6.5v9a4.5 4.5 0 1 1-9 0V6a3 3 0 0 1 6 0v9a1.5 1.5 0 0 1-3 0V7H9v8a3 3 0 0 0 6 0V6a4.5 4.5 0 0 0-9 0v9.5a6 6 0 0 0 12 0v-9h-1.5Z"/></symbol>
   </defs>
 </svg>
@@ -455,28 +540,39 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 
 <!-- =============== APP =============== -->
 <div id="app" class="hidden">
-  <div id="conn-banner">Reconnecting to Ripple…</div>
+  <div id="conn-banner">Reconnecting to Rippleâ€¦</div>
   <div id="shell">
+    <div id="rail"></div>
     <div id="sidebar">
       <div id="brand">
         <svg style="color:var(--accent)"><use href="#i-logo"/></svg>
-        <span class="name">Ripple</span>
+        <span class="name" id="sidebar-title">Ripple</span>
         <button class="hint" id="qs-hint-btn" title="Quick switch (Ctrl+K)">Ctrl K</button>
       </div>
       <div id="channel-list">
-        <div class="channel-group">
-          <div class="channel-group-header">Voice channels</div>
-          <div id="voice-channels"></div>
+        <div id="server-section">
+          <div class="channel-group">
+            <div class="channel-group-header">Voice channels</div>
+            <div id="voice-channels"></div>
+          </div>
+          <div class="channel-group">
+            <div class="channel-group-header">Text channels</div>
+            <div id="text-channels"></div>
+          </div>
         </div>
-        <div class="channel-group">
-          <div class="channel-group-header">Text channels</div>
-          <div id="text-channels"></div>
+        <div id="home-section" class="hidden">
+          <button class="side-action" id="dm-new"><svg><use href="#i-plus"/></svg>Start a conversation</button>
+          <div class="channel-group" style="margin-top:10px">
+            <div class="channel-group-header">Direct messages</div>
+            <div id="dm-list"></div>
+          </div>
+          <div id="home-hint">Right-click anyone — in chat, member lists, or voice — to message them, view their profile, or copy their user ID.</div>
         </div>
       </div>
       <div id="voice-dock">
         <div class="vd-top">
           <div id="vd-signal"></div>
-          <div id="vd-info"><div id="vd-status">Voice connected</div><div id="vd-channel"></div></div>
+          <div id="vd-info"><div id="vd-status">Voice connected</div><div id="vd-channel"></div><div id="vd-timer"></div></div>
           <button id="vd-leave" title="Disconnect"><svg><use href="#i-leave"/></svg></button>
         </div>
       </div>
@@ -495,7 +591,9 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <span id="mh-icon"><svg><use href="#i-hash"/></svg></span>
         <span id="mh-name">Welcome</span>
         <span id="mh-sub"></span>
+        <span id="mh-timer" class="hidden"></span>
         <div id="mh-actions">
+          <button class="icon-btn hidden" id="mh-call" title="Start voice call"><svg><use href="#i-phone"/></svg></button>
           <button class="icon-btn" id="members-toggle" title="Member list"><svg><use href="#i-users"/></svg></button>
         </div>
       </div>
@@ -506,10 +604,18 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <div id="voice-hintbar">
           <div id="voice-status"><span id="conn-ind"></span><span id="conn-text">Not connected</span></div>
         </div>
+        <div id="music-bar">
+          <span class="mb-icon"><svg><use href="#i-music"/></svg></span>
+          <span id="mb-title"></span>
+          <span id="mb-sub"></span>
+          <button id="mb-pause" title="Pause / resume"><svg><use href="#i-pause"/></svg></button>
+          <button id="mb-skip" title="Skip"><svg><use href="#i-skip"/></svg></button>
+          <button id="mb-stop" title="Stop"><svg><use href="#i-x"/></svg></button>
+        </div>
         <div id="voice-toolbar">
           <button class="tb-btn" id="tb-mute"><svg><use href="#i-mic"/></svg><span>Mute</span></button>
           <button class="tb-btn" id="tb-deafen"><svg><use href="#i-headphones"/></svg><span>Deafen</span></button>
-          <button class="tb-btn" id="tb-ptt" title="Push to talk — hold Space to transmit"><svg><use href="#i-mic"/></svg><span>Push to talk</span></button>
+          <button class="tb-btn" id="tb-ptt" title="Push to talk â€” hold Space to transmit"><svg><use href="#i-mic"/></svg><span>Push to talk</span></button>
           <div class="tb-sep"></div>
           <button class="tb-btn" id="tb-share"><svg><use href="#i-screen"/></svg><span>Share screen</span></button>
           <button class="tb-btn" id="tb-soundboard"><svg><use href="#i-music"/></svg><span>Soundboard</span></button>
@@ -528,7 +634,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
         <div id="composer">
           <button class="icon-btn" id="attach-btn" title="Upload image"><svg><use href="#i-attach"/></svg></button>
           <button class="icon-btn" id="gif-btn" title="Embed a GIF"><svg><use href="#i-gif"/></svg></button>
-          <textarea id="chat-input" placeholder="Message…" rows="1" maxlength="4000"></textarea>
+          <textarea id="chat-input" placeholder="Messageâ€¦" rows="1" maxlength="4000"></textarea>
           <button class="icon-btn" id="emoji-btn" title="Emoji"><svg><use href="#i-smile"/></svg></button>
           <button class="icon-btn" id="send-btn" title="Send"><svg><use href="#i-send"/></svg></button>
         </div>
@@ -546,12 +652,13 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <input type="file" id="img-file" accept="image/*" class="hidden">
 <input type="file" id="sound-file" accept="audio/*" class="hidden">
 <input type="file" id="avatar-file" accept="image/*" class="hidden">
+<input type="file" id="banner-file" accept="image/*" class="hidden">
 <div id="remote-audio" class="hidden"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
 /* ============================================================
-   RIPPLE client — single-file frontend
+   RIPPLE client â€” single-file frontend
    ============================================================ */
 'use strict';
 
@@ -562,6 +669,35 @@ const svgUse = (name, extra) => { const s = document.createElementNS('http://www
 const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
 function getInitials(name){ const p = String(name||'?').trim().split(/\s+/); return p.length>=2 ? (p[0][0]+p[1][0]).toUpperCase() : String(name||'?').slice(0,2).toUpperCase(); }
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+function api(pathname, opts={}){
+  return fetch(pathname, Object.assign({}, opts, {
+    headers: Object.assign({ 'Content-Type':'application/json', 'Authorization': token }, opts.headers||{})
+  }));
+}
+function rememberUser(u){
+  if(!u || !u.id) return;
+  userDir[u.id] = { id:u.id, username:u.username, avatar_color:u.avatar_color };
+  nameToId[u.username] = u.id;
+}
+function fmtElapsed(ms){
+  const s = Math.floor(ms/1000);
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+  return (h? h+':' : '') + String(m).padStart(h?2:1,'0') + ':' + String(ss).padStart(2,'0');
+}
+function fmtDuration(sec){
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if(h) return `${h}h ${m}m ${s}s`;
+  if(m) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+async function copyText(text, label){
+  try{ await navigator.clipboard.writeText(String(text)); toast((label||'Copied')+' to clipboard.'); }
+  catch{
+    const ta = el('textarea'); ta.value = String(text); document.body.appendChild(ta);
+    ta.select(); try{ document.execCommand('copy'); toast((label||'Copied')+' to clipboard.'); }catch{ toast('Could not copy.','err'); }
+    ta.remove();
+  }
+}
 
 /* ---------- persisted state ---------- */
 const store = {
@@ -576,21 +712,34 @@ const DEFAULT_SETTINGS = {
   joinSounds:true, shareAudio:true
 };
 let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
-let myProfile = Object.assign({ banner:'', accentHue:null, about:'', nameColor:'', nameFont:'', avatar:'' }, store.get('profile', {}));
+let myProfile = {};  // loaded from the server (/api/me) so it follows the account everywhere
 let myStatus = store.get('status', 'online');
 
 /* ---------- runtime state ---------- */
 let token = localStorage.getItem('token');
 let socket = null, socketFirstAuth = true;
 let currentUser = null;
-let channels = [];
+let servers = [];                  // servers I belong to
+let activeServer = null;
+let channels = [];                 // channels of the active server
+let dms = [];                      // [{channelId, other:{id,username,avatar_color}}]
+let view = 'server';               // 'server' | 'home'
 let activeChannel = null;          // channel currently shown in main area
-let currentChatChannel = null;     // text channel joined for chat
+let currentChatChannel = null;     // text channel (or DM) joined for chat
 let voiceChannel = null;           // voice channel we are connected to
+let voiceRoomName = null;          // LiveKit room name ('ch:<id>' | 'dm:<id>')
+let voiceConnectedAt = 0;          // ms timestamp for the call/voice timer
+let voiceTimerInt = null;
 const joinedChatRooms = new Set();
 const renderedMsgIds = new Set();
+const unread = new Set();          // channel ids with unread messages
 const profiles = {};               // username -> profile payload
+const userDir = {};                // userId -> {id, username, avatar_color}
+const nameToId = {};               // username -> userId
+const onlineIds = new Set();       // userIds currently online
 const userStatuses = {};           // username -> 'online'|'idle'|'dnd'
+let call = null;                   // active DM call state
+let musicState = null;             // last music-state for my room
 let isMuted=false, isDeafened=false, pttMode=false, pttHeld=false;
 let audioCtx=null, micStream=null, micSource=null, micGain=null, mixDest=null, localAnalyser=null, sfxGain=null;
 let outboundTrack=null, outboundStream=null;
@@ -616,7 +765,7 @@ function toast(msg, kind='info', ms=4200){
 }
 
 /* ============================================================
-   Synth SFX (join/leave/mute blips) — Web Audio, no assets
+   Synth SFX (join/leave/mute blips) â€” Web Audio, no assets
    ============================================================ */
 function blip(freqs, dur=0.09, gap=0.07, type='sine', vol=0.12){
   if(!settings.joinSounds) return;
@@ -649,7 +798,7 @@ const sfx = {
 };
 
 /* ============================================================
-   Settings application (theme, accent, density…)
+   Settings application (theme, accent, densityâ€¦)
    ============================================================ */
 function applySettings(){
   document.documentElement.dataset.theme = settings.theme;
@@ -681,7 +830,7 @@ $('auth-form').addEventListener('submit', async (e)=>{
   const password = $('auth-password').value;
   if(!username || !password) return;
   const btn = $('auth-btn');
-  btn.disabled = true; btn.textContent = '…'; $('auth-error').textContent = '';
+  btn.disabled = true; btn.textContent = 'â€¦'; $('auth-error').textContent = '';
   try{
     const res = await fetch(`/api/${authMode}`, {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -703,6 +852,7 @@ async function checkExistingSession(){
     const res = await fetch('/api/me', { headers:{ 'Authorization': token } });
     if(!res.ok){ localStorage.removeItem('token'); token = null; return false; }
     currentUser = (await res.json()).user;
+    myProfile = currentUser.profile || {};
     return true;
   }catch{ return false; }
 }
@@ -721,16 +871,54 @@ function logout(){
 async function enterApp(){
   $('auth-screen').classList.add('hidden');
   $('app').classList.remove('hidden');
-  profiles[currentUser.username] = sanitizeProfile(myProfile);
+  rememberUser(currentUser);
+
+  // one-time migration: push a locally saved profile up to the account
+  const legacy = store.get('profile', null);
+  if(legacy && Object.keys(legacy).length && !Object.keys(myProfile||{}).length){
+    myProfile = legacy;
+    saveProfileToServer();
+    store.del('profile');
+  }
+  profiles[currentUser.username] = myProfile || {};
   userStatuses[currentUser.username] = myStatus;
   renderUserPanel();
 
   try{
-    const res = await fetch('/api/channels');
-    channels = await res.json();
-  }catch{ toast('Could not load channels. Refresh to retry.','err'); return; }
+    servers = await (await api('/api/servers')).json();
+  }catch{ toast('Could not load your servers. Refresh to retry.','err'); return; }
+  const lastId = store.get('lastServer', null);
+  activeServer = servers.find(sv=>sv.id===lastId) || servers[0] || null;
 
+  await Promise.all([loadChannels(), loadDms()]);
+  renderRail();
+  renderChannels();
+  renderDmList();
   connectSocket();
+}
+
+async function loadChannels(){
+  if(!activeServer){ channels = []; return; }
+  try{
+    channels = await (await api(`/api/servers/${activeServer.id}/channels`)).json();
+    loadServerMembers();
+  }catch{ channels = []; }
+}
+let serverMembers = [];
+async function loadServerMembers(){
+  if(!activeServer){ serverMembers = []; renderMembers(); return; }
+  try{
+    serverMembers = await (await api(`/api/servers/${activeServer.id}/members`)).json();
+    serverMembers.forEach(m=>{ rememberUser(m); if(m.profile && m.username!==currentUser.username) profiles[m.username] = m.profile; });
+    renderMembers();
+  }catch{}
+}
+async function loadDms(){
+  try{
+    dms = await (await api('/api/dms')).json();
+    dms.forEach(d=>rememberUser(d.other));
+    if(socket && socket.connected) dms.forEach(d=>{ socket.emit('chat:join', d.channelId); joinedChatRooms.add(d.channelId); });
+  }catch{ dms = []; }
 }
 
 function connectSocket(){
@@ -741,37 +929,152 @@ function connectSocket(){
   socket.on('authed', (user)=>{
     if(!user){ toast('Your session expired. Please log in again.','err'); logout(); return; }
     $('conn-banner').classList.remove('show');
+    if(myStatus !== 'online') socket.emit('status:set', myStatus);
+    // always (re)join DM rooms so DMs arrive no matter what you're viewing
+    dms.forEach(d=>{ socket.emit('chat:join', d.channelId); joinedChatRooms.add(d.channelId); });
     if(socketFirstAuth){
       socketFirstAuth = false;
-      renderChannels();
       const firstText = channels.find(c=>c.type==='text');
       const first = firstText || channels[0];
       if(first) openChannel(first);
     }else{
-      // Reconnected: rejoin chat rooms and reconnect LiveKit.
       if(currentChatChannel){ socket.emit('chat:join', currentChatChannel.id); joinedChatRooms.add(currentChatChannel.id); syncChat(); }
-      if(voiceChannel && !livekitRoom){
-        joinVoice(voiceChannel);
-      }
+      if(voiceChannel && !livekitRoom) joinVoice(voiceChannel);
     }
   });
 
-  socket.on('disconnect', ()=>{
-    $('conn-banner').classList.add('show');
-  });
+  socket.on('disconnect', ()=>{ $('conn-banner').classList.add('show'); });
 
-  /* ---- chat events ---- */
+  /* ---- chat ---- */
   socket.on('new-message', onIncomingMessage);
+  socket.on('dm-message', onDmMessage);
   socket.on('typing', (data)=>{
     if(!currentChatChannel || !data || data.userId === currentUser.id) return;
+    if(data.channelId && data.channelId !== currentChatChannel.id) return;
     typingUsers[data.userId] = { username: data.username, ts: Date.now() };
     renderTyping();
+  });
+
+  /* ---- presence & status ---- */
+  socket.on('presence-sync', ({online, statuses})=>{
+    onlineIds.clear();
+    (online||[]).forEach(id=>onlineIds.add(id));
+    Object.entries(statuses||{}).forEach(([id,st])=>{
+      const u = userDir[id]; if(u) userStatuses[u.username] = st;
+    });
+    renderMembers(); renderDmList();
+  });
+  socket.on('presence', ({userId, online})=>{
+    online ? onlineIds.add(userId) : onlineIds.delete(userId);
+    const u = userDir[userId];
+    if(u && !online) delete userStatuses[u.username];
+    renderMembers(); renderDmList();
+  });
+  socket.on('status', ({userId, status})=>{
+    const u = userDir[userId];
+    if(u){ userStatuses[u.username] = status; renderMembers(); renderDmList(); if(u.id===currentUser.id){ myStatus=status; renderUserPanel(); } }
+  });
+
+  /* ---- profiles pushed from anywhere (site, desktop app, another tab) ---- */
+  socket.on('profile-updated', ({userId, username, profile})=>{
+    rememberUser({ id:userId, username, avatar_color: userDir[userId]?.avatar_color });
+    if(userId === currentUser.id){ myProfile = profile || {}; profiles[currentUser.username] = myProfile; renderUserPanel(); refreshUserVisuals(currentUser.username); }
+    else receiveProfile(username, profile);
+  });
+
+  /* ---- structure changes ---- */
+  socket.on('channels-changed', ({serverId})=>{ if(activeServer && serverId===activeServer.id){ loadChannels().then(renderChannels); } });
+  socket.on('server-members-changed', ({serverId})=>{ if(activeServer && serverId===activeServer.id) loadServerMembers(); });
+
+  /* ---- music ---- */
+  socket.on('music-state', (state)=>{
+    if(!state) return;
+    if(voiceRoomName && state.room === voiceRoomName){ musicState = state; renderMusicBar(); }
+  });
+
+  /* ---- DM calls ---- */
+  socket.on('call:incoming', onIncomingCall);
+  socket.on('call:cancelled', ({channelId})=>{ if(call && call.channelId===channelId && call.state==='ringing-in') endIncomingRing(); });
+  socket.on('call:accepted', ({channelId})=>{ if(call && call.channelId===channelId && call.state==='ringing-out'){ call.state='active'; stopRingLoop(); updateCallUi(); } });
+  socket.on('call:declined', ({channelId})=>{
+    if(call && call.channelId===channelId && call.state==='ringing-out'){
+      toast(`${call.withUser.username} declined the call.`,'warn');
+      finishDmCall(true); // logs a missed call
+    }
   });
 }
 
 /* ============================================================
-   CHANNELS + navigation
+   SERVER RAIL + CHANNELS + DMs + navigation
    ============================================================ */
+function renderRail(){
+  const rail = $('rail');
+  rail.innerHTML = '';
+  const home = el('div','rail-item'+(view==='home'?' active':''));
+  home.title = 'Direct messages';
+  home.appendChild(svgUse('i-home'));
+  home.dataset.rail = 'home';
+  if(view!=='home' && dms.some(d=>unread.has(d.channelId))) home.classList.add('has-unread');
+  home.addEventListener('click', ()=>switchToHome());
+  rail.appendChild(home);
+  rail.appendChild(el('div','rail-sep'));
+  servers.forEach(sv=>{
+    const it = el('div','rail-item'+((view==='server' && activeServer && sv.id===activeServer.id)?' active':''));
+    it.title = sv.name;
+    it.textContent = getInitials(sv.name);
+    it.dataset.server = sv.id;
+    it.addEventListener('click', ()=>selectServer(sv));
+    it.addEventListener('contextmenu', (e)=>{
+      e.preventDefault();
+      const items = [
+        { label:'Copy invite code', icon:'i-copy', fn:()=>copyText(sv.invite_code, 'Invite code') },
+      ];
+      if(sv.owner_id === currentUser.id) items.push({ label:'Create channel', icon:'i-plus', fn:()=>openCreateChannel(sv) });
+      if(sv.owner_id !== currentUser.id || servers.length>1) items.push({ sep:true }, { label:'Leave server', icon:'i-leave', danger:true, fn:()=>leaveServer(sv) });
+      showCtxMenu(e.clientX, e.clientY, items);
+    });
+    rail.appendChild(it);
+  });
+  const add = el('div','rail-item add');
+  add.title = 'Create or join a server';
+  add.appendChild(svgUse('i-plus'));
+  add.addEventListener('click', openServerModal);
+  rail.appendChild(add);
+}
+
+function switchToHome(){
+  view = 'home';
+  $('server-section').classList.add('hidden');
+  $('home-section').classList.remove('hidden');
+  $('sidebar-title').textContent = 'Ripple';
+  renderRail(); renderDmList();
+  const first = dms[0];
+  if(first) openDm(first);
+  else {
+    activeChannel = null; currentChatChannel = null;
+    $('mh-name').textContent = 'Direct messages';
+    $('mh-sub').textContent = 'Start a conversation from the sidebar';
+    $('mh-icon').innerHTML=''; $('mh-icon').appendChild(svgUse('i-message'));
+    $('mh-call').classList.add('hidden'); $('mh-timer').classList.add('hidden');
+    showChatStage(); $('messages').innerHTML=''; renderedMsgIds.clear();
+    renderMembers();
+  }
+}
+
+async function selectServer(sv){
+  view = 'server';
+  activeServer = sv;
+  store.set('lastServer', sv.id);
+  $('server-section').classList.remove('hidden');
+  $('home-section').classList.add('hidden');
+  $('sidebar-title').textContent = sv.name;
+  await loadChannels();
+  renderRail(); renderChannels();
+  const firstText = channels.find(c=>c.type==='text');
+  if(firstText) openChannel(firstText);
+  else if(channels[0]) openChannel(channels[0]);
+}
+
 function renderChannels(){
   const vc = $('voice-channels'), tc = $('text-channels');
   vc.innerHTML = ''; tc.innerHTML = '';
@@ -782,6 +1085,7 @@ function renderChannels(){
     icon.appendChild(svgUse(ch.type==='voice' ? 'i-speaker' : 'i-hash'));
     item.appendChild(icon);
     item.appendChild(el('span','ch-name', ch.name));
+    if(unread.has(ch.id) && ch.type==='text') item.appendChild(el('span','ch-unread'));
     if(ch.type==='voice'){
       const live = el('span','ch-live hidden'); item.appendChild(live);
       const members = el('div','vc-members'); members.dataset.for = ch.id;
@@ -792,32 +1096,223 @@ function renderChannels(){
     item.addEventListener('click', ()=>{ openChannel(ch); closeSidebarMobile(); });
   });
   highlightActiveChannel();
+  refreshSidebarVoiceMembers();
+}
+
+function renderDmList(){
+  const list = $('dm-list');
+  if(!list) return;
+  list.innerHTML = '';
+  dms.forEach(d=>{
+    const row = el('div','dm-row'+(activeChannel && activeChannel.type==='dm' && activeChannel.id===d.channelId ? ' active':''));
+    row.dataset.id = d.channelId;
+    const av = makeAvatar(d.other.username, d.other.avatar_color, 'avatar');
+    const online = onlineIds.has(d.other.id);
+    const st = online ? (userStatuses[d.other.username] || 'online') : 'offline';
+    const dot = el('span','status-dot '+(st==='online'?'':st));
+    if(st==='offline') dot.style.background = 'var(--offline)';
+    av.appendChild(dot);
+    row.appendChild(av);
+    const nm = el('span','dm-name', d.other.username);
+    applyNameStyle(nm, d.other.username);
+    row.appendChild(nm);
+    if(unread.has(d.channelId)) row.appendChild(el('span','ch-unread'));
+    row.addEventListener('click', ()=>{ openDm(d); closeSidebarMobile(); });
+    bindUserCtx(row, d.other);
+    list.appendChild(row);
+  });
+  if(!dms.length){
+    list.appendChild(el('div','member-empty','No conversations yet.'));
+  }
 }
 
 function highlightActiveChannel(){
   document.querySelectorAll('.channel-item').forEach(i=>i.classList.remove('active'));
-  if(activeChannel){
+  document.querySelectorAll('.dm-row').forEach(i=>i.classList.remove('active'));
+  if(!activeChannel) return;
+  if(activeChannel.type==='dm'){
+    const row = document.querySelector(`.dm-row[data-id="${activeChannel.id}"]`);
+    if(row) row.classList.add('active');
+  }else{
     const item = document.querySelector(`.channel-item[data-id="${activeChannel.id}"]`);
     if(item) item.classList.add('active');
   }
 }
 
+function markRead(channelId){
+  if(unread.delete(channelId)){ renderChannels(); renderDmList(); renderRail(); }
+}
+
 function openChannel(ch){
   activeChannel = ch;
+  markRead(ch.id);
   highlightActiveChannel();
   $('mh-name').textContent = ch.name;
+  $('mh-call').classList.add('hidden');
   if(ch.type === 'voice'){
     $('mh-icon').innerHTML=''; $('mh-icon').appendChild(svgUse('i-speaker'));
     $('mh-sub').textContent = 'Voice channel';
     showVoiceStage();
-    joinVoice(ch);   // connects (or just refocuses if already connected here)
+    joinVoice(ch);
   }else{
     $('mh-icon').innerHTML=''; $('mh-icon').appendChild(svgUse('i-hash'));
     $('mh-sub').textContent = 'Text channel';
     showChatStage();
     openChat(ch);
   }
+  updateHeaderTimer();
   renderMembers();
+}
+
+function openDm(d){
+  view = 'home';
+  $('server-section').classList.add('hidden');
+  $('home-section').classList.remove('hidden');
+  $('sidebar-title').textContent = 'Ripple';
+  const ch = { id: d.channelId, name: d.other.username, type: 'dm', dm: d };
+  activeChannel = ch;
+  markRead(ch.id);
+  renderRail(); renderDmList(); highlightActiveChannel();
+  $('mh-name').textContent = d.other.username;
+  $('mh-icon').innerHTML=''; $('mh-icon').appendChild(svgUse('i-message'));
+  const online = onlineIds.has(d.other.id);
+  $('mh-sub').textContent = online ? (statusLabel(userStatuses[d.other.username]||'online')) : 'Offline';
+  $('mh-call').classList.remove('hidden');
+  $('mh-call').onclick = ()=>startDmCall(d);
+  showChatStage();
+  openChat(ch);
+  updateHeaderTimer();
+  renderMembers();
+}
+
+async function openDmWithUser(userId){
+  try{
+    const d = await (await api('/api/dms', { method:'POST', body: JSON.stringify({ userId }) })).json();
+    if(d.error){ toast(d.error,'err'); return; }
+    rememberUser(d.other);
+    if(!dms.some(x=>x.channelId===d.channelId)) dms.unshift(d);
+    socket.emit('chat:join', d.channelId); joinedChatRooms.add(d.channelId);
+    openDm(d);
+  }catch{ toast('Could not open that conversation.','err'); }
+}
+
+/* ---- start-a-DM search ---- */
+$('dm-new').addEventListener('click', openDmSearch);
+function openDmSearch(){
+  closeOverlayById('dm-search-ov');
+  const ov = el('div','overlay'); ov.id='dm-search-ov'; ov.style.alignItems='flex-start';
+  const modal = el('div','modal'); modal.id='qs-modal';
+  const input = el('input'); input.id='qs-input'; input.placeholder='Search people by username…';
+  const results = el('div'); results.id='qs-results';
+  modal.append(input, results);
+  ov.appendChild(modal);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+  const run = debounce(async ()=>{
+    const q = input.value.trim();
+    results.innerHTML = '';
+    if(q.length<2){ results.appendChild(el('div','member-empty','Type at least 2 characters.')); return; }
+    let list = [];
+    try{ list = await (await api('/api/users/search?q='+encodeURIComponent(q))).json(); }catch{}
+    if(!list.length){ results.appendChild(el('div','member-empty','No one found.')); return; }
+    list.forEach(u=>{
+      rememberUser(u);
+      const item = el('div','qs-item');
+      const av = makeAvatar(u.username, u.avatar_color, 'avatar');
+      av.style.width='26px'; av.style.height='26px'; av.style.fontSize='10px';
+      item.append(av, el('span', null, u.username), el('span','mr-sub','#'+u.id));
+      item.addEventListener('click', ()=>{ ov.remove(); openDmWithUser(u.id); });
+      results.appendChild(item);
+    });
+  }, 250);
+  input.addEventListener('input', run);
+  setTimeout(()=>input.focus(), 20);
+}
+function closeOverlayById(id){ const o = $(id); if(o) o.remove(); }
+
+/* ---- create / join server ---- */
+function openServerModal(){
+  closeOverlayById('server-ov');
+  const ov = el('div','overlay'); ov.id='server-ov';
+  const modal = el('div','modal'); modal.style.cssText='width:380px;max-width:calc(100vw - 32px);padding:26px;display:block';
+  modal.appendChild(el('h3',null,'Add a server'));
+  const mkField = (label, ph)=>{ const f = el('div','sfield'); f.appendChild(el('label',null,label)); const i = el('input'); i.placeholder=ph; i.maxLength=40; f.appendChild(i); return [f,i]; };
+  const [cf, ci] = mkField('Create a new server','Server name');
+  const cbtn = el('button','btn','Create server'); cbtn.style.marginTop='4px';
+  cf.appendChild(cbtn);
+  modal.appendChild(cf);
+  const [jf, ji] = mkField('…or join with an invite code','e.g. 4f9a2c1b');
+  const jbtn = el('button','btn ghost','Join server'); jbtn.style.marginTop='4px';
+  jf.appendChild(jbtn);
+  jf.style.marginTop='18px';
+  modal.appendChild(jf);
+  ov.appendChild(modal);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+  cbtn.addEventListener('click', async ()=>{
+    const name = ci.value.trim();
+    if(name.length<2){ toast('Give your server a name (2+ characters).','warn'); return; }
+    try{
+      const sv = await (await api('/api/servers', { method:'POST', body: JSON.stringify({ name }) })).json();
+      if(sv.error){ toast(sv.error,'err'); return; }
+      servers.push(sv); ov.remove();
+      toast(`Server "${sv.name}" created. Right-click its icon to copy the invite code.`);
+      selectServer(sv);
+    }catch{ toast('Could not create the server.','err'); }
+  });
+  jbtn.addEventListener('click', async ()=>{
+    const code = ji.value.trim();
+    if(!code){ toast('Paste an invite code first.','warn'); return; }
+    try{
+      const sv = await (await api('/api/servers/join', { method:'POST', body: JSON.stringify({ code }) })).json();
+      if(sv.error){ toast(sv.error,'err'); return; }
+      if(!servers.some(x=>x.id===sv.id)) servers.push(sv);
+      ov.remove();
+      toast(`Joined "${sv.name}".`);
+      selectServer(sv);
+    }catch{ toast('Could not join with that code.','err'); }
+  });
+  setTimeout(()=>ci.focus(), 20);
+}
+
+function openCreateChannel(sv){
+  closeOverlayById('chan-ov');
+  const ov = el('div','overlay'); ov.id='chan-ov';
+  const modal = el('div','modal'); modal.style.cssText='width:360px;max-width:calc(100vw - 32px);padding:26px;display:block';
+  modal.appendChild(el('h3',null,'Create channel'));
+  const f = el('div','sfield'); f.appendChild(el('label',null,'Channel name'));
+  const i = el('input'); i.maxLength=32; f.appendChild(i); modal.appendChild(f);
+  const tf = el('div','sfield'); tf.appendChild(el('label',null,'Type'));
+  const sel = el('select');
+  [['text','# Text'],['voice','🔊 Voice']].forEach(([v,l])=>{ const o = el('option',null,l); o.value=v; sel.appendChild(o); });
+  tf.appendChild(sel); modal.appendChild(tf);
+  const btn = el('button','btn','Create'); modal.appendChild(btn);
+  ov.appendChild(modal); document.body.appendChild(ov);
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+  btn.addEventListener('click', async ()=>{
+    const name = i.value.trim(); if(!name){ toast('Name the channel first.','warn'); return; }
+    try{
+      const ch = await (await api(`/api/servers/${sv.id}/channels`, { method:'POST', body: JSON.stringify({ name, type: sel.value }) })).json();
+      if(ch.error){ toast(ch.error,'err'); return; }
+      ov.remove();
+      if(activeServer && activeServer.id===sv.id){ await loadChannels(); renderChannels(); }
+    }catch{ toast('Could not create the channel.','err'); }
+  });
+  setTimeout(()=>i.focus(), 20);
+}
+
+async function leaveServer(sv){
+  try{
+    const r = await (await api(`/api/servers/${sv.id}/leave`, { method:'POST', body:'{}' })).json();
+    if(r.error){ toast(r.error,'err'); return; }
+    servers = servers.filter(x=>x.id!==sv.id);
+    toast(`Left "${sv.name}".`);
+    if(activeServer && activeServer.id===sv.id){
+      activeServer = servers[0] || null;
+      if(activeServer) selectServer(activeServer); else switchToHome();
+    }
+    renderRail();
+  }catch{ toast('Could not leave the server.','err'); }
 }
 
 function showVoiceStage(){ $('voice-stage').classList.remove('hidden'); $('chat-stage').classList.add('hidden'); }
@@ -854,28 +1349,46 @@ async function openChat(ch){
 async function syncChat(scrollToEnd){
   if(!currentChatChannel) return;
   try{
-    const res = await fetch(`/api/channels/${currentChatChannel.id}/messages`);
+    const res = await api(`/api/channels/${currentChatChannel.id}/messages`);
     const msgs = await res.json();
+    if(!Array.isArray(msgs)) throw new Error(msgs.error||'no access');
+    msgs.forEach(m=>rememberUser({ id:m.user_id, username:m.username, avatar_color:m.avatar_color }));
     msgs.forEach(m=>{ if(!renderedMsgIds.has(m.id)) appendMessage(m, false); });
     if(scrollToEnd) scrollMessages(true);
   }catch{ toast('Could not load message history.','err'); }
 }
 
-async function onIncomingMessage(msg){
-  if(!currentChatChannel || !msg || renderedMsgIds.has(msg.id)) return;
-  // The server does not include channel_id on broadcast messages and never leaves old
-  // chat rooms, so if we've visited multiple text channels we verify before rendering.
-  if(joinedChatRooms.size > 1){
-    try{
-      const res = await fetch(`/api/channels/${currentChatChannel.id}/messages`);
-      const list = await res.json();
-      if(!list.some(m=>m.id===msg.id)) return;
-    }catch{ return; }
+function onIncomingMessage(msg){
+  if(!msg || renderedMsgIds.has(msg.id)) return;
+  rememberUser({ id: msg.user_id, username: msg.username, avatar_color: msg.avatar_color });
+  // messages now carry channel_id, so routing is exact
+  if(currentChatChannel && msg.channel_id === currentChatChannel.id){
+    const tk = Object.keys(typingUsers).find(k=>typingUsers[k].username===msg.username);
+    if(tk){ delete typingUsers[tk]; renderTyping(); }
+    appendMessage(msg, true);
+  }else if(msg.channel_id){
+    unread.add(msg.channel_id);
+    renderChannels(); renderDmList(); renderRail();
   }
-  if(renderedMsgIds.has(msg.id)) return;
-  const tk = Object.keys(typingUsers).find(k=>typingUsers[k].username===msg.username);
-  if(tk){ delete typingUsers[tk]; renderTyping(); }
-  appendMessage(msg, true);
+}
+
+function onDmMessage(msg){
+  if(!msg) return;
+  rememberUser({ id: msg.user_id, username: msg.username, avatar_color: msg.avatar_color });
+  // make sure the conversation exists in the sidebar (someone may have just DM'd us for the first time)
+  if(!dms.some(d=>d.channelId===msg.channel_id)){
+    loadDms().then(()=>{ renderDmList(); renderRail(); });
+  }else{
+    const i = dms.findIndex(d=>d.channelId===msg.channel_id);
+    if(i>0){ const [d] = dms.splice(i,1); dms.unshift(d); renderDmList(); }
+  }
+  if(msg.user_id !== currentUser.id && (!currentChatChannel || currentChatChannel.id !== msg.channel_id)){
+    unread.add(msg.channel_id);
+    renderDmList(); renderRail();
+    const isCallLog = /^\[\[call:\d+\]\]$/.test(String(msg.content).trim());
+    if(!isCallLog) toast(`💬 ${msg.username}: ${String(msg.content).startsWith('data:image/') ? 'sent an image' : String(msg.content).slice(0,70)}`);
+  }
+  onIncomingMessage(msg);
 }
 
 function dayKey(d){ return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate(); }
@@ -905,25 +1418,39 @@ function appendMessage(msg, animate){
   }
   const grouped = lastMsgMeta && lastMsgMeta.username === msg.username && (d - lastMsgMeta.ts) < 5*60*1000;
 
+  const userRef = { id: msg.user_id, username: msg.username, avatar_color: msg.avatar_color };
   const row = el('div','msg'+(grouped?' cont':''));
   if(grouped){
     row.appendChild(el('span','m-gutter', fmtTime(d)));
   }else{
     const av = makeAvatar(msg.username, msg.avatar_color, 'avatar m-avatar');
-    av.addEventListener('click', (e)=>openProfilePopout(e.currentTarget, msg.username, msg.avatar_color));
+    av.style.cursor = 'pointer';
+    av.addEventListener('click', (e)=>{ e.stopPropagation(); openProfilePopout(e.currentTarget, msg.username, msg.avatar_color, msg.user_id); });
+    bindUserCtx(av, userRef);
     row.appendChild(av);
   }
   const body = el('div','m-body');
   if(!grouped){
     const head = el('div','m-head');
     const nameEl = el('span','m-user', msg.username);
+    nameEl.style.cursor = 'pointer';
     applyNameStyle(nameEl, msg.username);
-    nameEl.addEventListener('click', (e)=>openProfilePopout(e.currentTarget, msg.username, msg.avatar_color));
+    nameEl.addEventListener('click', (e)=>{ e.stopPropagation(); openProfilePopout(e.currentTarget, msg.username, msg.avatar_color, msg.user_id); });
+    bindUserCtx(nameEl, userRef);
     head.appendChild(nameEl);
     head.appendChild(el('span','m-time', fmtTime(d)));
     body.appendChild(head);
   }
-  body.appendChild(renderContent(msg.content));
+  const callMatch = /^\[\[call:(\d+)\]\]$/.exec(String(msg.content).trim());
+  if(callMatch){
+    const secs = parseInt(callMatch[1], 10);
+    const log = el('div','call-log');
+    log.appendChild(svgUse(secs>0 ? 'i-phone' : 'i-phone-off'));
+    log.appendChild(document.createTextNode(secs>0 ? `Call ended · ${fmtDuration(secs)}` : 'Missed call'));
+    body.appendChild(log);
+  }else{
+    body.appendChild(renderContent(msg.content));
+  }
   row.appendChild(body);
   box.appendChild(row);
   lastMsgMeta = { username: msg.username, ts: d, dayKey: dk };
@@ -937,7 +1464,7 @@ const URL_RE = /https?:\/\/[^\s<>"]+/g;
 function renderContent(content){
   const wrap = el('div','m-content');
   const trimmed = String(content||'').trim();
-  // whole message is an image (upload or pasted GIF/image URL) → embed only
+  // whole message is an image (upload or pasted GIF/image URL) â†’ embed only
   if(trimmed.startsWith('data:image/') || IMG_URL_RE.test(trimmed) || MEDIA_HOST_RE.test(trimmed)){
     wrap.appendChild(makeEmbed(trimmed));
     return wrap;
@@ -990,9 +1517,9 @@ function renderTyping(){
   if(!names.length) return;
   const dots = el('span','typing-dots'); dots.append(el('i'),el('i'),el('i'));
   bar.appendChild(dots);
-  const label = names.length===1 ? `${names[0]} is typing…`
-    : names.length===2 ? `${names[0]} and ${names[1]} are typing…`
-    : 'Several people are typing…';
+  const label = names.length===1 ? `${names[0]} is typingâ€¦`
+    : names.length===2 ? `${names[0]} and ${names[1]} are typingâ€¦`
+    : 'Several people are typingâ€¦';
   bar.appendChild(el('span', null, label));
 }
 setInterval(renderTyping, 1200);
@@ -1025,6 +1552,7 @@ async function postMessage(content){
   if(!renderedMsgIds.has(msg.id)) appendMessage(msg, 'force');
 }
 
+const MUSIC_CMD_RE = /^!(play|p|pause|resume|unpause|skip|s|stop|leave|dc|queue|q|np|help)\b/i;
 async function sendMessage(){
   if(!currentChatChannel) return;
   const text = chatInput.value.trim();
@@ -1032,7 +1560,12 @@ async function sendMessage(){
   chatInput.value = ''; chatInput.style.height = 'auto';
   try{
     if(pendingImage){ const img = pendingImage; clearPendingImage(); await postMessage(img); }
-    if(text) await postMessage(text);
+    if(text){
+      await postMessage(text);
+      if(MUSIC_CMD_RE.test(text)){
+        api('/api/music/command', { method:'POST', body: JSON.stringify({ room: voiceRoomName, channelId: currentChatChannel.id, text }) }).catch(()=>{});
+      }
+    }
   }catch(err){ toast(err.message || 'Message failed to send.','err'); }
 }
 
@@ -1055,7 +1588,7 @@ $('messages').addEventListener('drop', (e)=>{
 });
 
 async function stageImageFile(file){
-  if(activeChannel?.type!=='text'){ toast('Open a text channel to send images.','warn'); return; }
+  if(!['text','dm'].includes(activeChannel?.type||'')){ toast('Open a text channel or DM to send images.','warn'); return; }
   try{
     const dataUrl = await compressImage(file, 90000);
     pendingImage = dataUrl;
@@ -1109,7 +1642,7 @@ $('gif-btn').addEventListener('click', (e)=>{
   togglePopover('gif-pop', $('gif-btn'), ()=>{
     const pop = el('div','popover'); pop.id = 'gif-pop';
     pop.innerHTML = '<h6>Send a GIF</h6>';
-    const input = el('input'); input.placeholder = 'Paste a GIF or image URL (Tenor, Giphy…)';
+    const input = el('input'); input.placeholder = 'Paste a GIF or image URL (Tenor, Giphyâ€¦)';
     const prev = el('div'); prev.id = 'gif-preview';
     prev.appendChild(el('span','err','Preview appears here'));
     const row = el('div','row');
@@ -1141,7 +1674,7 @@ $('gif-btn').addEventListener('click', (e)=>{
 });
 
 /* emoji picker */
-const EMOJIS = '😀 😂 🤣 😊 😍 😎 🤔 😅 😭 😡 🙃 😴 🤯 🥳 😇 🤗 👍 👎 👏 🙌 🙏 💪 🤝 👀 💀 🔥 ✨ ⚡ 💯 🎉 🎊 ❤️ 🧡 💛 💚 💙 💜 🖤 💔 😺 🐶 🐸 🦆 🍕 🍔 🌮 🍩 ☕ 🍺 🎮 🎧 🎤 🎸 🏆 ⚽ 🏀 🚀 🌈 🌙 ⭐ ❓ ❗ ✅ ❌'.split(' ');
+const EMOJIS = 'ðŸ˜€ ðŸ˜‚ ðŸ¤£ ðŸ˜Š ðŸ˜ ðŸ˜Ž ðŸ¤” ðŸ˜… ðŸ˜­ ðŸ˜¡ ðŸ™ƒ ðŸ˜´ ðŸ¤¯ ðŸ¥³ ðŸ˜‡ ðŸ¤— ðŸ‘ ðŸ‘Ž ðŸ‘ ðŸ™Œ ðŸ™ ðŸ’ª ðŸ¤ ðŸ‘€ ðŸ’€ ðŸ”¥ âœ¨ âš¡ ðŸ’¯ ðŸŽ‰ ðŸŽŠ â¤ï¸ ðŸ§¡ ðŸ’› ðŸ’š ðŸ’™ ðŸ’œ ðŸ–¤ ðŸ’” ðŸ˜º ðŸ¶ ðŸ¸ ðŸ¦† ðŸ• ðŸ” ðŸŒ® ðŸ© â˜• ðŸº ðŸŽ® ðŸŽ§ ðŸŽ¤ ðŸŽ¸ ðŸ† âš½ ðŸ€ ðŸš€ ðŸŒˆ ðŸŒ™ â­ â“ â— âœ… âŒ'.split(' ');
 $('emoji-btn').addEventListener('click', (e)=>{
   e.stopPropagation();
   togglePopover('emoji-pop', $('emoji-btn'), ()=>{
@@ -1183,7 +1716,7 @@ function closePopovers(){
 document.addEventListener('click', ()=>{ closePopovers(); closeProfilePopout(); closeStatusMenu(); });
 
 /* ============================================================
-   VOICE — media pipeline (LiveKit)
+   VOICE â€” media pipeline (LiveKit)
    ============================================================ */
 async function ensureMedia(){
   if(micStream && micStream.active) return true;
@@ -1317,7 +1850,7 @@ document.addEventListener('keyup', (e)=>{
 function isTypingTarget(t){ return t && (t.tagName==='TEXTAREA' || t.tagName==='INPUT' || t.isContentEditable); }
 
 /* ============================================================
-   VOICE — LiveKit connection / join / leave
+   VOICE â€” LiveKit connection / join / leave
    ============================================================ */
 const { Room, RoomEvent } = LivekitClient;
 
@@ -1332,18 +1865,19 @@ async function getLiveKitToken(roomName){
 }
 
 async function joinVoice(channel){
-  if(voiceChannel && voiceChannel.id === channel.id) return;
+  if(voiceChannel && voiceChannel.id === channel.id && voiceChannel.type === channel.type) return;
   if(voiceChannel) localTeardown();
   const ok = await ensureMedia();
-  if(!ok) return;
+  if(!ok) return false;
   voiceChannel = channel;
+  voiceRoomName = (channel.type === 'dm' ? 'dm:' : 'ch:') + channel.id;
   sfx.join();
-  setConnStatus('ok', 'Connecting to LiveKit…');
+  setConnStatus('ok', 'Connecting to LiveKitâ€¦');
   updateVoiceDock();
   $('tile-grid').innerHTML = '';
   addSelfTile();
   try{
-    const { token, url } = await getLiveKitToken(channel.name);
+    const { token, url } = await getLiveKitToken(voiceRoomName);
     livekitRoom = new Room({
       adaptiveStream: true,
       dynacast: true,
@@ -1356,17 +1890,44 @@ async function joinVoice(channel){
       applyTxState();
     }
     livekitRoom.localParticipant.setAttributes({ deafened: isDeafened ? 'true' : '' });
-    setConnStatus('ok', 'Connected · LiveKit');
+    setConnStatus('ok', 'Connected Â· LiveKit');
     $('vd-status').textContent = 'Voice connected';
+    voiceConnectedAt = Date.now();
+    startVoiceTimer();
   }catch(err){
     console.warn('LiveKit connect failed', err);
     toast('Could not connect to voice server.','err');
     setConnStatus('bad','Connection failed');
-    voiceChannel = null;
+    voiceChannel = null; voiceRoomName = null;
     updateVoiceDock();
-    return;
+    return false;
   }
   refreshVoiceCounts();
+  return true;
+}
+
+/* ---- call / voice timers ---- */
+function startVoiceTimer(){
+  stopVoiceTimer();
+  voiceTimerInt = setInterval(tickVoiceTimer, 1000);
+  tickVoiceTimer();
+}
+function stopVoiceTimer(){
+  if(voiceTimerInt){ clearInterval(voiceTimerInt); voiceTimerInt = null; }
+  $('vd-timer').textContent = '';
+  $('mh-timer').classList.add('hidden');
+}
+function tickVoiceTimer(){
+  if(!voiceChannel || !voiceConnectedAt){ stopVoiceTimer(); return; }
+  const base = (voiceChannel.type==='dm' && call && call.connectedAt) ? call.connectedAt : voiceConnectedAt;
+  const t = fmtElapsed(Date.now() - base);
+  $('vd-timer').textContent = t;
+  updateHeaderTimer(t);
+}
+function updateHeaderTimer(t){
+  const show = !!(voiceChannel && voiceConnectedAt && activeChannel && activeChannel.id === voiceChannel.id && activeChannel.type === voiceChannel.type);
+  $('mh-timer').classList.toggle('hidden', !show);
+  if(show) $('mh-timer').textContent = t || fmtElapsed(Date.now() - voiceConnectedAt);
 }
 
 function localTeardown(){
@@ -1382,16 +1943,17 @@ function localTeardown(){
 
 function leaveVoice(silent){
   if(!voiceChannel) return;
-  const wasViewing = activeChannel && activeChannel.id === voiceChannel.id;
+  const wasDm = voiceChannel.type === 'dm';
+  if(wasDm && call){ finishDmCall(false, true); return; }
+  const wasViewing = activeChannel && activeChannel.id === voiceChannel.id && !wasDm;
   localTeardown();
-  voiceChannel = null;
+  voiceChannel = null; voiceRoomName = null;
+  voiceConnectedAt = 0; stopVoiceTimer();
+  musicState = null; renderMusicBar();
   updateVoiceDock();
   refreshVoiceCounts();
   setConnStatus('bad','Not connected');
-  if(!silent){
-    sfx.leave();
-    try{ socket.disconnect(); socket.connect(); }catch{}
-  }
+  if(!silent) sfx.leave();
   if(wasViewing && currentChatChannel) openChannel(currentChatChannel);
   renderMembers();
 }
@@ -1400,7 +1962,7 @@ $('vd-leave').addEventListener('click', ()=>leaveVoice(false));
 
 function updateVoiceDock(){
   $('voice-dock').classList.toggle('show', !!voiceChannel);
-  if(voiceChannel) $('vd-channel').textContent = voiceChannel.name;
+  if(voiceChannel) $('vd-channel').textContent = voiceChannel.type==='dm' ? ('Call \u2014 ' + voiceChannel.name) : voiceChannel.name;
 }
 
 function disconnectLiveKit(){
@@ -1419,6 +1981,12 @@ function setupLiveKitEvents(){
     ensureTileForParticipant(participant);
     sfx.peerJoin();
     refreshVoiceCounts();
+    if(voiceChannel && voiceChannel.type==='dm' && call && call.state!=='active' && participant.identity!=='music-bot'){
+      call.state = 'active';
+      call.connectedAt = Date.now();
+      stopRingLoop();
+      updateCallUi();
+    }
   });
 
   livekitRoom.on(RoomEvent.ParticipantDisconnected, (participant)=>{
@@ -1430,6 +1998,11 @@ function setupLiveKitEvents(){
     removeRemoteScreen(id);
     sfx.peerLeave();
     refreshVoiceCounts();
+    // DM call: when the other person hangs up, end our side and log the duration
+    if(voiceChannel && voiceChannel.type==='dm' && call && participant.identity!=='music-bot'){
+      const humansLeft = [...livekitRoom.remoteParticipants.values()].filter(p=>p.identity!=='music-bot').length;
+      if(humansLeft === 0) finishDmCall(false, false);
+    }
   });
 
   livekitRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant)=>{
@@ -1470,12 +2043,10 @@ function setupLiveKitEvents(){
   });
 
   livekitRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers)=>{
-    // Reset all indicators first
+    const selfId = livekitRoom.localParticipant.identity;
     setTalking('local', false);
-    const all = [...livekitRoom.remoteParticipants.values()];
-    all.forEach(p=>setTalking(p.identity, false));
-    // Set only active speakers
-    speakers.forEach(s=>setTalking(s.identity, true));
+    [...livekitRoom.remoteParticipants.values()].forEach(p=>setTalking(p.identity, false));
+    speakers.forEach(sp=>setTalking(sp.identity === selfId ? 'local' : sp.identity, true));
   });
 
   livekitRoom.on(RoomEvent.DataReceived, (payload, participant)=>{
@@ -1491,10 +2062,15 @@ function setupLiveKitEvents(){
 
 function ensureTileForParticipant(participant){
   if(tileFor(participant.identity)) return;
-  const name = participant.name || participant.identity;
   let meta = {};
   try{ meta = JSON.parse(participant.metadata || '{}'); }catch{}
-  const user = { username: name, avatar_color: meta.avatar_color || '#58a6ff' };
+  const user = {
+    id: meta.id,
+    username: meta.username || participant.name || participant.identity,
+    avatar_color: meta.avatar_color || '#58a6ff',
+    bot: !!meta.bot || participant.identity === 'music-bot'
+  };
+  if(user.id && !user.bot) rememberUser(user);
   buildTile(participant.identity, user, false);
 }
 
@@ -1511,7 +2087,147 @@ function refreshLiveKitRoster(){
 }
 
 /* ============================================================
-   VOICE — tiles
+   DM CALLS — ring, accept/decline, duration logging
+   ============================================================ */
+function ringTone(incoming){
+  blip(incoming ? [660,880] : [523], incoming ? 0.16 : 0.5, 0.12, 'sine', 0.14);
+}
+function startRingLoop(incoming){
+  stopRingLoop();
+  ringTone(incoming);
+  if(call) call.ringInt = setInterval(()=>ringTone(incoming), incoming ? 2400 : 3000);
+}
+function stopRingLoop(){
+  if(call && call.ringInt){ clearInterval(call.ringInt); call.ringInt = null; }
+}
+
+async function startDmCall(d){
+  if(call){ toast('You are already in a call.','warn'); return; }
+  if(voiceChannel) leaveVoice(true);
+  call = { channelId: d.channelId, withUser: d.other, state: 'ringing-out', connectedAt: 0, ringInt: null, timeout: null };
+  const ok = await joinVoice({ id: d.channelId, name: d.other.username, type: 'dm', dm: d });
+  if(!ok){ call = null; return; }
+  socket.emit('call:ring', { channelId: d.channelId });
+  startRingLoop(false);
+  call.timeout = setTimeout(()=>{
+    if(call && call.state === 'ringing-out'){
+      toast(`${d.other.username} didn't answer.`,'warn');
+      socket.emit('call:cancel', { channelId: d.channelId });
+      finishDmCall(true, true);
+    }
+  }, 60000);
+  showVoiceStage();
+  updateCallUi();
+}
+
+function onIncomingCall({channelId, from}){
+  if(!from) return;
+  rememberUser(from);
+  if(call){ socket.emit('call:decline', { channelId }); return; } // busy
+  call = { channelId, withUser: from, state: 'ringing-in', connectedAt: 0, ringInt: null, timeout: null };
+  startRingLoop(true);
+  const modal = el('div'); modal.id = 'call-modal';
+  const card = el('div','call-card');
+  const av = makeAvatar(from.username, from.avatar_color, 'avatar');
+  card.appendChild(av);
+  card.appendChild(el('h3', null, from.username));
+  card.appendChild(el('p', null, 'Incoming call'));
+  const actions = el('div','call-actions');
+  const acc = el('button','call-btn accept'); acc.title='Accept'; acc.appendChild(svgUse('i-phone'));
+  const dec = el('button','call-btn decline'); dec.title='Decline'; dec.appendChild(svgUse('i-phone-off'));
+  actions.append(acc, dec);
+  card.appendChild(actions);
+  modal.appendChild(card);
+  document.body.appendChild(modal);
+  acc.addEventListener('click', ()=>acceptCall());
+  dec.addEventListener('click', ()=>{
+    socket.emit('call:decline', { channelId });
+    endIncomingRing(false);
+  });
+  call.timeout = setTimeout(()=>endIncomingRing(true), 55000);
+}
+
+async function acceptCall(){
+  if(!call || call.state !== 'ringing-in') return;
+  const c = call;
+  stopRingLoop();
+  if(c.timeout) clearTimeout(c.timeout);
+  const modal = $('call-modal'); if(modal) modal.remove();
+  // make sure the DM exists in our sidebar, then open it
+  if(!dms.some(d=>d.channelId === c.channelId)) await loadDms();
+  let d = dms.find(x=>x.channelId === c.channelId);
+  if(!d) d = { channelId: c.channelId, other: c.withUser };
+  socket.emit('chat:join', c.channelId); joinedChatRooms.add(c.channelId);
+  openDm(d);
+  const ok = await joinVoice({ id: c.channelId, name: c.withUser.username, type: 'dm', dm: d });
+  if(!ok){ call = null; return; }
+  socket.emit('call:accept', { channelId: c.channelId });
+  call.state = 'active';
+  call.connectedAt = Date.now();
+  showVoiceStage();
+  updateCallUi();
+}
+
+function endIncomingRing(timedOut){
+  const modal = $('call-modal'); if(modal) modal.remove();
+  stopRingLoop();
+  if(call && call.timeout) clearTimeout(call.timeout);
+  if(call) toast(`Missed call from ${call.withUser.username}.`,'warn');
+  call = null;
+}
+
+function updateCallUi(){
+  if(!call) return;
+  if(call.state === 'ringing-out'){
+    $('vd-status').textContent = 'Calling…';
+    setConnStatus('warn', `Calling ${call.withUser.username}…`);
+  }else if(call.state === 'active'){
+    $('vd-status').textContent = 'Voice connected';
+    setConnStatus('ok', `In a call with ${call.withUser.username}`);
+  }
+  renderMembers();
+}
+
+/* end a DM call and (from exactly one side) log its duration in the chat */
+function finishDmCall(missed, iEnded){
+  if(!call) return;
+  const c = call;
+  stopRingLoop();
+  if(c.timeout) clearTimeout(c.timeout);
+  const modal = $('call-modal'); if(modal) modal.remove();
+
+  let shouldPost = false, secs = 0;
+  if(missed){
+    shouldPost = iEnded && c.state === 'ringing-out'; // caller logs the missed call
+  }else if(c.connectedAt){
+    secs = Math.max(1, Math.round((Date.now() - c.connectedAt) / 1000));
+    const humansLeft = livekitRoom ? [...livekitRoom.remoteParticipants.values()].filter(p=>p.identity!=='music-bot').length : 0;
+    shouldPost = humansLeft === 0; // whoever is last in the room posts, so it's logged once
+  }
+  if(iEnded && c.state === 'ringing-out' && !missed){
+    socket.emit('call:cancel', { channelId: c.channelId });
+    shouldPost = true; // cancelled before pickup -> missed call
+  }
+
+  call = null;
+  localTeardown();
+  voiceChannel = null; voiceRoomName = null;
+  voiceConnectedAt = 0; stopVoiceTimer();
+  musicState = null; renderMusicBar();
+  updateVoiceDock();
+  refreshVoiceCounts();
+  setConnStatus('bad','Not connected');
+  sfx.leave();
+
+  if(shouldPost){
+    api(`/api/channels/${c.channelId}/messages`, { method:'POST', body: JSON.stringify({ content: `[[call:${secs}]]` }) }).catch(()=>{});
+  }
+  if(activeChannel && activeChannel.type==='dm' && activeChannel.id===c.channelId) showChatStage();
+  renderMembers();
+}
+
+/* ============================================================
+   VOICE â€” tiles
    ============================================================ */
 function tileFor(id){ return document.querySelector(`.vtile[data-id="${CSS.escape(id)}"]`); }
 
@@ -1538,18 +2254,22 @@ function ensureTile(id, user){
   refreshVoiceCounts();
 }
 function buildTile(id, user, isSelf){
-  const tile = el('div','vtile');
+  const tile = el('div','vtile'+(user.bot?' bot':''));
   tile.dataset.id = id;
   tile.dataset.username = user.username;
+  const uid = isSelf ? currentUser.id : user.id;
+  if(uid) tile.dataset.uid = uid;
   const wrap = el('div','av-wrap');
   wrap.append(el('div','ring ring1'), el('div','ring ring2'), el('div','ring ring3'));
   const av = makeAvatar(user.username, user.avatar_color, 'avatar');
   av.style.width = '72px'; av.style.height = '72px'; av.style.fontSize = '24px';
+  if(user.bot){ av.textContent=''; av.appendChild(svgUse('i-music')); av.querySelector('svg').style.cssText='width:30px;height:30px'; }
   wrap.appendChild(av);
   tile.appendChild(wrap);
   const nameEl = el('div','vt-name', user.username);
   applyNameStyle(nameEl, user.username);
-  nameEl.addEventListener('click', (e)=>{ e.stopPropagation(); openProfilePopout(e.currentTarget, user.username, user.avatar_color); });
+  nameEl.addEventListener('click', (e)=>{ e.stopPropagation(); openProfilePopout(e.currentTarget, user.username, user.avatar_color, uid); });
+  if(!user.bot) bindUserCtx(tile, { id: uid, username: user.username, avatar_color: user.avatar_color });
   tile.appendChild(nameEl);
   const badges = el('div','vt-badges');
   const bm = el('span','badge b-mute'); bm.appendChild(svgUse('i-mic-off')); bm.appendChild(document.createTextNode('MUTED'));
@@ -1564,11 +2284,11 @@ function buildTile(id, user, isSelf){
 function refreshVoiceCounts(){
   const n = voiceChannel ? document.querySelectorAll('.vtile').length : 0;
   if(activeChannel && voiceChannel && activeChannel.id === voiceChannel.id){
-    $('mh-sub').textContent = `Voice channel · ${n} connected`;
+    $('mh-sub').textContent = `Voice channel Â· ${n} connected`;
   }
   document.querySelectorAll('.channel-item[data-type="voice"]').forEach(item=>{
     const live = item.querySelector('.ch-live');
-    if(live) live.classList.toggle('hidden', !(voiceChannel && String(voiceChannel.id)===item.dataset.id && n>0));
+    if(live) live.classList.toggle('hidden', !(voiceChannel && voiceChannel.type!=='dm' && String(voiceChannel.id)===item.dataset.id && n>0));
   });
   refreshSidebarVoiceMembers();
   renderMembers();
@@ -1578,7 +2298,7 @@ function refreshVoiceCounts(){
 function refreshSidebarVoiceMembers(){
   document.querySelectorAll('.vc-members').forEach(box=>{
     box.innerHTML = '';
-    if(!voiceChannel || box.dataset.for !== String(voiceChannel.id)) return;
+    if(!voiceChannel || voiceChannel.type==='dm' || box.dataset.for !== String(voiceChannel.id)) return;
     const members = livekitRoom ? [...livekitRoom.remoteParticipants.values()] : [];
     if(!livekitRoom || !livekitRoom.localParticipant) return;
     const allParticipants = [livekitRoom.localParticipant, ...members];
@@ -1602,20 +2322,20 @@ function refreshSidebarVoiceMembers(){
 }
 
 /* ============================================================
-   VOICE — LiveKit connection status
+   VOICE â€” LiveKit connection status
    ============================================================ */
 function updateConnStatus(){
   if(!voiceChannel){ setConnStatus('bad','Not connected'); $('vd-status').textContent='Voice'; return; }
   if(!livekitRoom || livekitRoom.state === 'disconnected'){
     setConnStatus('bad','Disconnected');
   }else if(livekitRoom.state === 'connecting'){
-    setConnStatus('warn','Connecting…');
+    setConnStatus('warn','Connectingâ€¦');
   }else{
     const count = livekitRoom.remoteParticipants.size;
     if(count === 0){
-      setConnStatus('ok', 'Connected — you are the only one here');
+      setConnStatus('ok', 'Connected â€” you are the only one here');
     }else{
-      setConnStatus('ok', `Connected · ${count} other${count!==1?'s':''}`);
+      setConnStatus('ok', `Connected Â· ${count} other${count!==1?'s':''}`);
     }
     $('vd-status').textContent = 'Voice connected';
   }
@@ -1628,7 +2348,7 @@ function setConnStatus(kind, text){
 }
 
 /* ============================================================
-   VOICE — talking (triggered by LiveKit ActiveSpeakersChanged)
+   VOICE â€” talking (triggered by LiveKit ActiveSpeakersChanged)
    ============================================================ */
 function setTalking(id, talking){
   const tile = tileFor(id);
@@ -1683,7 +2403,7 @@ function applySink(a){
 }
 
 /* ============================================================
-   Screen share — LiveKit
+   Screen share â€” LiveKit
    ============================================================ */
 $('tb-share').addEventListener('click', ()=>{ screenTrack ? stopScreenShare() : startScreenShare(); });
 
@@ -1760,7 +2480,7 @@ function removeRemoteScreen(peerId){
 }
 
 /* ============================================================
-   Soundboard — clips sent over LiveKit data channel
+   Soundboard â€” clips sent over LiveKit data channel
    ============================================================ */
 function broadcastMetaLiveKit(obj){
   if(!livekitRoom || !livekitRoom.localParticipant) return;
@@ -1779,7 +2499,7 @@ function buildSoundboardPopover(){
   const grid = el('div'); grid.id = 'sb-grid'; pop.appendChild(grid);
   const all = [...mySounds.map(s=>({...s, by:'you', mine:true})), ...Object.values(remoteSounds)];
   if(!all.length){
-    const empty = el('div', null, 'No sounds yet. Add a short clip — everyone in this channel will be able to play it.');
+    const empty = el('div', null, 'No sounds yet. Add a short clip â€” everyone in this channel will be able to play it.');
     empty.id = 'sb-empty'; grid.appendChild(empty);
   }
   all.forEach(s=>{
@@ -1791,13 +2511,13 @@ function buildSoundboardPopover(){
       broadcastMetaLiveKit({ t:'sb-play', id: s.id, username: currentUser.username });
     });
     if(s.mine){
-      const del = el('span','sb-del','✕'); del.title='Remove';
+      const del = el('span','sb-del','âœ•'); del.title='Remove';
       del.addEventListener('click', (ev)=>{ ev.stopPropagation(); mySounds = mySounds.filter(x=>x.id!==s.id); store.set('sounds', mySounds); closePopovers(); });
       pad.appendChild(del);
     }
     grid.appendChild(pad);
   });
-  const add = el('button','btn'); add.id='sb-add'; add.textContent = 'Upload a sound (≤ ~200 KB, a few seconds)';
+  const add = el('button','btn'); add.id='sb-add'; add.textContent = 'Upload a sound (â‰¤ ~200 KB, a few seconds)';
   add.addEventListener('click', ()=>$('sound-file').click());
   pop.appendChild(add);
   return pop;
@@ -1857,28 +2577,49 @@ async function playSoundById(id, by){
 /* ============================================================
    Profiles, status, popouts
    ============================================================ */
+const BANNER_RE = /^(#[0-9a-fA-F]{3,8}|linear-gradient\(135deg,#[0-9a-fA-F]{3,8},#[0-9a-fA-F]{3,8}\))$/;
 function sanitizeProfile(p){
   const s = {};
-  if(p.banner && /^#[0-9a-fA-F]{3,8}$/.test(p.banner)) s.banner = p.banner;
+  if(!p || typeof p !== 'object') return s;
+  if(p.banner && BANNER_RE.test(p.banner)) s.banner = p.banner;
+  if(typeof p.bannerImage === 'string' && p.bannerImage.startsWith('data:image/') && p.bannerImage.length <= 400000) s.bannerImage = p.bannerImage;
   if(typeof p.about === 'string') s.about = p.about.slice(0, 300);
   if(p.nameColor && /^#[0-9a-fA-F]{3,8}$/.test(p.nameColor)) s.nameColor = p.nameColor;
   if(['','display','serif','mono','cursive'].includes(p.nameFont||'')) s.nameFont = p.nameFont||'';
-  if(typeof p.avatar === 'string' && p.avatar.startsWith('data:image/') && p.avatar.length < 70000) s.avatar = p.avatar;
+  if(typeof p.avatar === 'string' && p.avatar.startsWith('data:image/') && p.avatar.length <= 150000) s.avatar = p.avatar;
   return s;
 }
-function receiveProfile(username, profile){
-  if(!username || username === currentUser.username) return;
-  profiles[username] = sanitizeProfile(profile || {});
-  // refresh visible avatars/names for that user
+
+/* save my profile to the server so it syncs everywhere (site, desktop app, other devices) */
+async function saveProfileToServer(){
+  myProfile = sanitizeProfile(myProfile);
+  profiles[currentUser.username] = myProfile;
+  try{
+    const res = await api('/api/profile', { method:'PUT', body: JSON.stringify(myProfile) });
+    const data = await res.json();
+    if(data && data.profile){ myProfile = data.profile; profiles[currentUser.username] = myProfile; }
+  }catch{ toast('Profile could not be saved to the server.','warn'); }
+  renderUserPanel();
+  refreshUserVisuals(currentUser.username);
+  renderMembers(); renderDmList();
+}
+
+function refreshUserVisuals(username){
   document.querySelectorAll(`.vtile[data-username="${CSS.escape(username)}"]`).forEach(t=>{
     const av = t.querySelector('.av-wrap .avatar');
-    const fresh = makeAvatar(username, av.style.backgroundColor || '#58a6ff', 'avatar');
+    const color = (userDir[nameToId[username]]||{}).avatar_color || av.style.backgroundColor || '#58a6ff';
+    const fresh = makeAvatar(username, color, 'avatar');
     fresh.style.width='72px'; fresh.style.height='72px'; fresh.style.fontSize='24px';
     av.replaceWith(fresh);
     applyNameStyle(t.querySelector('.vt-name'), username);
   });
   refreshSidebarVoiceMembers();
-  renderMembers();
+}
+function receiveProfile(username, profile){
+  if(!username || username === currentUser.username) return;
+  profiles[username] = sanitizeProfile(profile || {});
+  refreshUserVisuals(username);
+  renderMembers(); renderDmList();
 }
 const NAME_FONTS = { display:'var(--font-display)', serif:'Georgia, serif', mono:'ui-monospace, Menlo, monospace', cursive:'"Comic Sans MS", "Segoe Print", cursive' };
 function applyNameStyle(elm, username){
@@ -1890,12 +2631,16 @@ function applyNameStyle(elm, username){
 
 function statusLabel(s){ return s==='idle' ? 'Idle' : s==='dnd' ? 'Do Not Disturb' : 'Online'; }
 
-function buildProfileCard(username, fallbackColor){
+function buildProfileCard(username, fallbackColor, uid){
   const prof = profiles[username] || {};
-  const status = userStatuses[username] || (username===currentUser.username ? myStatus : 'online');
+  uid = uid || nameToId[username];
+  const isSelf = username === currentUser.username;
+  const isOnline = isSelf || (uid ? onlineIds.has(uid) : true);
+  const status = !isOnline ? 'offline' : (userStatuses[username] || (isSelf ? myStatus : 'online'));
   const card = el('div','profile-card');
   const banner = el('div','pc-banner');
-  if(prof.banner) banner.style.background = prof.banner;
+  if(prof.bannerImage) banner.style.backgroundImage = `url("${prof.bannerImage}")`;
+  else if(prof.banner) banner.style.background = prof.banner;
   card.appendChild(banner);
   const body = el('div','pc-body');
   const av = makeAvatar(username, fallbackColor, 'avatar pc-avatar');
@@ -1903,18 +2648,32 @@ function buildProfileCard(username, fallbackColor){
   const nm = el('div','pc-name', username);
   applyNameStyle(nm, username);
   body.appendChild(nm);
+  if(uid) body.appendChild(el('div','pc-uid', 'User ID: ' + uid));
   const st = el('div','pc-status');
   const dot = el('span','dot '+(status==='online'?'':status));
-  st.appendChild(dot); st.appendChild(document.createTextNode(statusLabel(status)));
+  if(status==='offline') dot.style.background='var(--offline)';
+  st.appendChild(dot); st.appendChild(document.createTextNode(status==='offline' ? 'Offline' : statusLabel(status)));
   body.appendChild(st);
   if(prof.about) body.appendChild(el('div','pc-about', prof.about));
+  const actions = el('div','pc-actions');
+  if(uid && !isSelf && username !== 'Ripple' && username !== 'Ripple Music'){
+    const msg = el('button','btn','Message');
+    msg.addEventListener('click', ()=>{ closeProfilePopout(); openDmWithUser(uid); });
+    actions.appendChild(msg);
+  }
+  if(uid){
+    const cp = el('button','btn ghost','Copy ID');
+    cp.addEventListener('click', ()=>copyText(uid, 'User ID'));
+    actions.appendChild(cp);
+  }
+  if(actions.children.length) body.appendChild(actions);
   card.appendChild(body);
   return card;
 }
-function openProfilePopout(anchor, username, color){
+function openProfilePopout(anchor, username, color, uid){
   closeProfilePopout(); closePopovers();
   const pop = el('div'); pop.id = 'profile-popout';
-  pop.appendChild(buildProfileCard(username, color));
+  pop.appendChild(buildProfileCard(username, color, uid));
   document.body.appendChild(pop);
   const r = anchor.getBoundingClientRect();
   pop.style.left = clamp(r.right + 10, 8, window.innerWidth - pop.offsetWidth - 8) + 'px';
@@ -1946,7 +2705,7 @@ function setMyStatus(s){
   myStatus = s; store.set('status', s);
   userStatuses[currentUser.username] = s;
   renderUserPanel();
-  broadcastMetaLiveKit({ t:'status', status: s, username: currentUser.username });
+  try{ socket.emit('status:set', s); }catch{}
   renderMembers();
 }
 
@@ -1960,7 +2719,14 @@ function renderUserPanel(){
   $('up-status').textContent = statusLabel(myStatus);
   $('up-dot').className = 'status-dot ' + (myStatus==='online' ? '' : myStatus);
 }
-$('up-avatar').addEventListener('click', (e)=>{ e.stopPropagation(); openProfilePopout($('up-avatar'), currentUser.username, currentUser.avatar_color); });
+$('up-avatar').addEventListener('click', (e)=>{ e.stopPropagation(); openProfilePopout($('up-avatar'), currentUser.username, currentUser.avatar_color, currentUser.id); });
+$('up-avatar').addEventListener('contextmenu', (e)=>{
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY, [
+    { label:'Copy my user ID', icon:'i-copy', fn:()=>copyText(currentUser.id, 'User ID') },
+    { label:'View profile', icon:'i-users', fn:()=>openProfilePopout($('up-avatar'), currentUser.username, currentUser.avatar_color, currentUser.id) }
+  ]);
+});
 
 /* ============================================================
    Members sidebar
@@ -1969,29 +2735,55 @@ function renderMembers(){
   const list = $('members-list');
   if(!list) return;
   list.innerHTML = '';
-  if(voiceChannel && livekitRoom && livekitRoom.remoteParticipants.size > 0){
-    $('members-title').textContent = `In voice — ${voiceChannel.name}`;
+
+  const viewingVoice = voiceChannel && activeChannel && activeChannel.id === voiceChannel.id && activeChannel.type === voiceChannel.type;
+  if(viewingVoice && livekitRoom && livekitRoom.localParticipant){
+    $('members-title').textContent = voiceChannel.type==='dm' ? 'In call' : 'In voice';
     const all = [livekitRoom.localParticipant, ...livekitRoom.remoteParticipants.values()];
-    all.forEach(p=>{
-      const name = p.name || p.identity;
+    all.forEach(pp=>{
       let meta = {};
-      try{ meta = JSON.parse(p.metadata || '{}'); }catch{}
-      const isSelf = p.identity === livekitRoom.localParticipant.identity;
-      list.appendChild(memberRow(name, meta.avatar_color, isSelf ? 'you' : ''));
+      try{ meta = JSON.parse(pp.metadata || '{}'); }catch{}
+      const isSelf = pp.identity === livekitRoom.localParticipant.identity;
+      const uname = meta.username || pp.name || pp.identity;
+      const uid = isSelf ? currentUser.id : meta.id;
+      const isBot = !!meta.bot || pp.identity==='music-bot';
+      list.appendChild(memberRow(uname, meta.avatar_color || (isSelf?currentUser.avatar_color:'#58a6ff'), isSelf ? 'you' : (isBot ? 'bot' : ''), uid, true, isBot));
     });
-  }else{
-    $('members-title').textContent = 'Members';
-    list.appendChild(memberRow(currentUser.username, currentUser.avatar_color, 'you'));
-    const note = el('div','member-empty','Others appear here when they join voice. Message history shows everyone who has chatted.');
-    list.appendChild(note);
+    return;
+  }
+
+  if(activeChannel && activeChannel.type === 'dm' && activeChannel.dm){
+    $('members-title').textContent = 'This conversation';
+    list.appendChild(memberRow(currentUser.username, currentUser.avatar_color, 'you', currentUser.id, true));
+    const o = activeChannel.dm.other;
+    list.appendChild(memberRow(o.username, o.avatar_color, '', o.id, onlineIds.has(o.id)));
+    return;
+  }
+
+  $('members-title').textContent = activeServer ? `Members ${DASH} ${serverMembers.length}` : 'Members';
+  const withMe = serverMembers.some(m=>m.id===currentUser.id) ? serverMembers : [ {...currentUser}, ...serverMembers ];
+  const online = [], offline = [];
+  withMe.forEach(m=>{
+    (m.id===currentUser.id || onlineIds.has(m.id)) ? online.push(m) : offline.push(m);
+  });
+  if(online.length){
+    list.appendChild(el('div','members-sec', `Online ${DASH} ${online.length}`));
+    online.forEach(m=>list.appendChild(memberRow(m.username, m.avatar_color, m.id===currentUser.id?'you':'', m.id, true)));
+  }
+  if(offline.length){
+    list.appendChild(el('div','members-sec', `Offline ${DASH} ${offline.length}`));
+    offline.forEach(m=>list.appendChild(memberRow(m.username, m.avatar_color, '', m.id, false)));
   }
 }
-function memberRow(username, color, sub){
-  const row = el('div','member-row');
+
+function memberRow(username, color, sub, uid, isOnline, isBot){
+  const row = el('div','member-row'+(isOnline===false?' offline':''));
   const av = makeAvatar(username, color, 'avatar');
   av.style.width='30px'; av.style.height='30px'; av.style.fontSize='12px';
-  const status = userStatuses[username] || 'online';
-  const dot = el('span','status-dot '+(status==='online'?'':status));
+  if(isBot){ av.textContent=''; av.appendChild(svgUse('i-music')); av.querySelector('svg').style.cssText='width:15px;height:15px'; }
+  const status = isOnline===false ? 'offline' : (userStatuses[username] || 'online');
+  const dot = el('span','status-dot '+(status==='online'||status==='offline'?'':status));
+  if(status==='offline') dot.style.background='var(--offline)';
   av.appendChild(dot);
   row.appendChild(av);
   const col = el('div');
@@ -2000,9 +2792,85 @@ function memberRow(username, color, sub){
   col.appendChild(nm);
   if(sub) col.appendChild(el('span','mr-sub', sub));
   row.appendChild(col);
-  row.addEventListener('click', (e)=>{ e.stopPropagation(); openProfilePopout(row, username, color); });
+  row.addEventListener('click', (e)=>{ e.stopPropagation(); openProfilePopout(row, username, color, uid); });
+  if(!isBot) bindUserCtx(row, { id: uid, username, avatar_color: color });
   return row;
 }
+
+/* ============================================================
+   Context menu (right-click) — works on chat authors, members,
+   voice tiles, DM rows and server icons
+   ============================================================ */
+function showCtxMenu(x, y, items){
+  closeCtxMenu();
+  const menu = el('div'); menu.id = 'ctx-menu';
+  items.forEach(it=>{
+    if(it.sep){ menu.appendChild(el('div','ctx-sep')); return; }
+    const b = el('button','ctx-item'+(it.danger?' danger':''));
+    if(it.icon) b.appendChild(svgUse(it.icon));
+    b.appendChild(document.createTextNode(it.label));
+    b.addEventListener('click', ()=>{ closeCtxMenu(); it.fn && it.fn(); });
+    menu.appendChild(b);
+  });
+  document.body.appendChild(menu);
+  menu.style.left = clamp(x, 8, window.innerWidth - menu.offsetWidth - 8) + 'px';
+  menu.style.top  = clamp(y, 8, window.innerHeight - menu.offsetHeight - 8) + 'px';
+  menu.addEventListener('click', e=>e.stopPropagation());
+  menu.addEventListener('contextmenu', e=>e.preventDefault());
+}
+function closeCtxMenu(){ const m = $('ctx-menu'); if(m) m.remove(); }
+document.addEventListener('click', closeCtxMenu);
+document.addEventListener('contextmenu', (e)=>{ if(!e.target.closest('#ctx-menu')) closeCtxMenu(); }, true);
+
+function bindUserCtx(elm, user){
+  if(!user || !user.username) return;
+  elm.addEventListener('contextmenu', (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    const uid = user.id || nameToId[user.username];
+    const items = [
+      { label:'View profile', icon:'i-users', fn:()=>openProfilePopout(elm, user.username, user.avatar_color, uid) }
+    ];
+    if(uid && uid !== currentUser.id){
+      items.push({ label:'Message @'+user.username, icon:'i-message', fn:()=>openDmWithUser(uid) });
+    }
+    items.push({ sep:true });
+    if(uid) items.push({ label:'Copy user ID', icon:'i-copy', fn:()=>copyText(uid, 'User ID') });
+    items.push({ label:'Copy username', icon:'i-copy', fn:()=>copyText(user.username, 'Username') });
+    showCtxMenu(e.clientX, e.clientY, items);
+  });
+}
+
+/* ============================================================
+   Music bar (now playing, in the voice stage)
+   ============================================================ */
+function renderMusicBar(){
+  const bar = $('music-bar');
+  if(!bar) return;
+  const st = musicState;
+  if(!st || !st.current || !voiceRoomName || st.room !== voiceRoomName){
+    bar.classList.remove('show');
+    return;
+  }
+  bar.classList.add('show');
+  bar.classList.toggle('paused', !!st.paused);
+  $('mb-title').textContent = st.current.title || 'Unknown track';
+  const extra = st.queue && st.queue.length ? ` ${DASH} ${st.queue.length} queued` : '';
+  $('mb-sub').textContent = `by ${st.current.requestedBy || '?'}${extra}${st.paused ? ' (paused)' : ''}`;
+  $('mb-pause').innerHTML = '';
+  $('mb-pause').appendChild(svgUse(st.paused ? 'i-play' : 'i-pause'));
+}
+function musicCommand(text){
+  if(!voiceRoomName){ toast('Join a voice channel first.','warn'); return; }
+  const feedbackId = (currentChatChannel && currentChatChannel.id)
+    || (voiceChannel && voiceChannel.type==='dm' && voiceChannel.id)
+    || (channels.find(c=>c.type==='text')||{}).id;
+  if(!feedbackId){ toast('Open a text channel so the bot can reply.','warn'); return; }
+  api('/api/music/command', { method:'POST', body: JSON.stringify({ room: voiceRoomName, channelId: feedbackId, text }) }).catch(()=>{});
+}
+$('mb-pause').addEventListener('click', ()=>musicCommand(musicState && musicState.paused ? '!resume' : '!pause'));
+$('mb-skip').addEventListener('click', ()=>musicCommand('!skip'));
+$('mb-stop').addEventListener('click', ()=>musicCommand('!stop'));
+
 $('members-toggle').addEventListener('click', ()=>{
   $('members').style.display = $('members').style.display==='none' ? '' : 'none';
 });
@@ -2072,27 +2940,10 @@ function paneProfile(){
   pane.appendChild(el('h3', null, 'My profile'));
 
   const preview = el('div'); preview.style.marginBottom = '22px';
-  const renderPreview = ()=>{ preview.innerHTML=''; preview.appendChild(buildProfileCard(currentUser.username, currentUser.avatar_color)); };
+  const renderPreview = ()=>{ preview.innerHTML=''; preview.appendChild(buildProfileCard(currentUser.username, currentUser.avatar_color, currentUser.id)); };
 
-  const saveProfile = ()=>{
-    myProfile = sanitizeProfile(myProfile);
-    store.set('profile', myProfile);
-    profiles[currentUser.username] = myProfile;
-    broadcastMetaLiveKit({ t:'profile', profile: myProfile, username: currentUser.username });
-    renderUserPanel();
-    const t = tileFor('local');
-    if(t){ receiveProfileSelfRefresh(); }
-    renderMembers();
-    renderPreview();
-  };
-  function receiveProfileSelfRefresh(){
-    const t = tileFor('local'); if(!t) return;
-    const av = t.querySelector('.av-wrap .avatar');
-    const fresh = makeAvatar(currentUser.username, currentUser.avatar_color, 'avatar');
-    fresh.style.width='72px'; fresh.style.height='72px'; fresh.style.fontSize='24px';
-    av.replaceWith(fresh);
-    applyNameStyle(t.querySelector('.vt-name'), currentUser.username);
-  }
+  const save = debounce(()=>saveProfileToServer().then(renderPreview), 250);
+  const saveNow = ()=>{ saveProfileToServer().then(renderPreview); };
 
   renderPreview();
   pane.appendChild(preview);
@@ -2104,10 +2955,10 @@ function paneProfile(){
   const upBtn = el('button','btn','Upload image (or GIF)');
   upBtn.addEventListener('click', ()=>$('avatar-file').click());
   const clearBtn = el('button','btn ghost','Remove');
-  clearBtn.addEventListener('click', ()=>{ myProfile.avatar=''; saveProfile(); });
+  clearBtn.addEventListener('click', ()=>{ myProfile.avatar=''; saveNow(); });
   avRow.append(upBtn, clearBtn);
   avField.appendChild(avRow);
-  avField.appendChild(el('div','desc','Shown to people in voice channels with you. Animated GIFs stay animated. Kept small so it travels peer-to-peer.'));
+  avField.appendChild(el('div','desc','Saved to your account, so it shows on the website and in the desktop app. Animated GIFs stay animated.'));
   pane.appendChild(avField);
   $('avatar-file').onchange = async ()=>{
     const f = $('avatar-file').files[0];
@@ -2115,39 +2966,92 @@ function paneProfile(){
     if(!f) return;
     try{
       let dataUrl;
-      if(f.type==='image/gif' && f.size < 50000){
+      if(f.type==='image/gif' && f.size < 105000){
         dataUrl = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
       }else{
-        dataUrl = await compressImage(f, 60000);
+        dataUrl = await compressImage(f, 120000);
       }
-      if(dataUrl.length > 69000){ toast('That image is too large even after compression — try a smaller one (GIFs must be under ~35 KB).','err'); return; }
-      myProfile.avatar = dataUrl; saveProfile();
+      if(dataUrl.length > 150000){ toast('That image is too large \u2014 try a smaller one (GIFs must be under ~100 KB).','err'); return; }
+      myProfile.avatar = dataUrl; saveNow();
     }catch{ toast('Could not read that image.','err'); }
   };
 
-  // banner color
+  // banner: solid colors, gradients, or an uploaded image/GIF
   const bField = el('div','sfield');
-  bField.appendChild(el('label', null, 'Banner color'));
-  const swr = el('div','swatch-row');
+  bField.appendChild(el('label', null, 'Profile banner'));
+
+  const markSel = ()=>{
+    bField.querySelectorAll('.swatch').forEach(x=>{
+      x.classList.toggle('sel', !myProfile.bannerImage && x.dataset.val === (myProfile.banner||''));
+    });
+  };
+
+  const solids = el('div','swatch-row');
   ['#17B8A6','#3B82F6','#8B5CF6','#EC4899','#F97316','#EAB308','#22C55E','#64748B','#0F172A'].forEach(c=>{
-    const s = el('button','swatch'+(myProfile.banner===c?' sel':''));
-    s.style.background = c;
-    s.addEventListener('click', ()=>{ myProfile.banner = c; saveProfile(); swr.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel')); s.classList.add('sel'); });
-    swr.appendChild(s);
+    const sw = el('button','swatch');
+    sw.style.background = c; sw.dataset.val = c; sw.title = c;
+    sw.addEventListener('click', ()=>{ myProfile.banner = c; delete myProfile.bannerImage; saveNow(); markSel(); });
+    solids.appendChild(sw);
   });
-  bField.appendChild(swr);
+  bField.appendChild(solids);
+
+  const grads = el('div','swatch-row'); grads.style.marginTop = '8px';
+  [['#17B8A6','#3B82F6'],['#8B5CF6','#EC4899'],['#F97316','#EAB308'],['#0EA5E9','#22C55E'],
+   ['#F43F5E','#8B5CF6'],['#0F172A','#17B8A6'],['#EC4899','#F97316'],['#3B82F6','#8B5CF6']].forEach(([a,b])=>{
+    const val = `linear-gradient(135deg,${a},${b})`;
+    const sw = el('button','swatch');
+    sw.style.background = val; sw.dataset.val = val; sw.title = 'Gradient';
+    sw.addEventListener('click', ()=>{ myProfile.banner = val; delete myProfile.bannerImage; saveNow(); markSel(); });
+    grads.appendChild(sw);
+  });
+  bField.appendChild(grads);
+
+  // custom two-color gradient
+  const gr = el('div','grad-row');
+  const c1 = el('input'); c1.type='color'; c1.value='#17B8A6';
+  const c2 = el('input'); c2.type='color'; c2.value='#8B5CF6';
+  const apply = el('button','btn ghost','Use custom gradient');
+  apply.addEventListener('click', ()=>{ myProfile.banner = `linear-gradient(135deg,${c1.value},${c2.value})`; delete myProfile.bannerImage; saveNow(); markSel(); });
+  gr.append(c1, c2, apply);
+  bField.appendChild(gr);
+
+  // banner image / GIF
+  const bImgRow = el('div'); bImgRow.style.cssText='display:flex;gap:8px;margin-top:10px';
+  const bUp = el('button','btn','Upload banner image / GIF');
+  bUp.addEventListener('click', ()=>$('banner-file').click());
+  const bClear = el('button','btn ghost','Remove image');
+  bClear.addEventListener('click', ()=>{ delete myProfile.bannerImage; saveNow(); markSel(); });
+  bImgRow.append(bUp, bClear);
+  bField.appendChild(bImgRow);
+  bField.appendChild(el('div','desc','Pick a color, a gradient (very Nitro), or upload a picture/GIF that fits the top of your profile card.'));
   pane.appendChild(bField);
+  markSel();
+  $('banner-file').onchange = async ()=>{
+    const f = $('banner-file').files[0];
+    $('banner-file').value='';
+    if(!f) return;
+    try{
+      let dataUrl;
+      if(f.type==='image/gif' && f.size < 290000){
+        dataUrl = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+      }else{
+        dataUrl = await compressBanner(f, 380000);
+      }
+      if(!dataUrl || dataUrl.length > 400000){ toast('That banner is too large \u2014 use a smaller image (GIFs under ~280 KB).','err'); return; }
+      myProfile.bannerImage = dataUrl; saveNow(); markSel();
+    }catch{ toast('Could not read that image.','err'); }
+  };
 
   // name color + font
   const nField = el('div','sfield');
   nField.appendChild(el('label', null, 'Name color'));
   const nwr = el('div','swatch-row');
   ['','#3FE0C5','#79C0FF','#D2A8FF','#FF7B72','#FFA657','#7EE787','#F778BA'].forEach(c=>{
-    const s = el('button','swatch'+((myProfile.nameColor||'')===c?' sel':''));
-    s.style.background = c || 'linear-gradient(135deg,var(--text) 50%,var(--bg-4) 50%)';
-    s.title = c || 'Default';
-    s.addEventListener('click', ()=>{ myProfile.nameColor = c; saveProfile(); nwr.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel')); s.classList.add('sel'); });
-    nwr.appendChild(s);
+    const sw = el('button','swatch'+((myProfile.nameColor||'')===c?' sel':''));
+    sw.style.background = c || 'linear-gradient(135deg,var(--text) 50%,var(--bg-4) 50%)';
+    sw.title = c || 'Default';
+    sw.addEventListener('click', ()=>{ myProfile.nameColor = c; saveNow(); nwr.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel')); sw.classList.add('sel'); });
+    nwr.appendChild(sw);
   });
   nField.appendChild(nwr);
   pane.appendChild(nField);
@@ -2158,7 +3062,7 @@ function paneProfile(){
   [['','Default'],['display','Display'],['serif','Serif'],['mono','Monospace'],['cursive','Handwritten']].forEach(([v,l])=>{
     const o = el('option', null, l); o.value = v; if((myProfile.nameFont||'')===v) o.selected = true; fSel.appendChild(o);
   });
-  fSel.addEventListener('change', ()=>{ myProfile.nameFont = fSel.value; saveProfile(); });
+  fSel.addEventListener('change', ()=>{ myProfile.nameFont = fSel.value; saveNow(); });
   fField.appendChild(fSel);
   pane.appendChild(fField);
 
@@ -2166,11 +3070,47 @@ function paneProfile(){
   const aField = el('div','sfield');
   aField.appendChild(el('label', null, 'About me'));
   const ta = el('textarea'); ta.maxLength = 300; ta.value = myProfile.about || '';
-  ta.addEventListener('change', ()=>{ myProfile.about = ta.value; saveProfile(); });
+  ta.addEventListener('input', ()=>{ myProfile.about = ta.value; save(); });
   aField.appendChild(ta);
-  aField.appendChild(el('div','desc','Shown on your profile card. Profile details are shared live with people in voice with you; they are stored on this device.'));
+  aField.appendChild(el('div','desc','Everything here is saved to your account on the server, so it follows you between the website and the app.'));
   pane.appendChild(aField);
+
+  // user id
+  const idField = el('div','sfield');
+  idField.appendChild(el('label', null, 'User ID'));
+  const idRow = el('div'); idRow.style.cssText='display:flex;gap:8px;align-items:center';
+  const idVal = el('code', null, String(currentUser.id)); idVal.style.cssText='background:var(--bg-3);border:1px solid var(--border);border-radius:6px;padding:5px 10px';
+  const idBtn = el('button','btn ghost','Copy');
+  idBtn.addEventListener('click', ()=>copyText(currentUser.id, 'User ID'));
+  idRow.append(idVal, idBtn);
+  idField.appendChild(idRow);
+  pane.appendChild(idField);
   return pane;
+}
+
+/* like compressImage but wide-crop friendly for banners */
+function compressBanner(file, maxChars){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let quality = 0.82, maxW = 1000;
+      const attempt = ()=>{
+        const scale = Math.min(1, maxW/img.width);
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width*scale));
+        c.height = Math.max(1, Math.round(img.height*scale));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        const out = c.toDataURL('image/jpeg', quality);
+        if(out.length <= maxChars || (quality<=0.4 && maxW<=400)) return out;
+        if(quality > 0.4) quality -= 0.14; else maxW = Math.round(maxW*0.75);
+        return attempt();
+      };
+      try{ resolve(attempt()); }catch(e){ reject(e); }
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 function paneVoice(){
@@ -2239,7 +3179,7 @@ function paneAppearance(){
   const hue = el('input'); hue.type='range'; hue.min=0; hue.max=359; hue.value=settings.accentHue;
   hue.addEventListener('input', ()=>{ settings.accentHue = +hue.value; applySettings(); });
   aF.appendChild(hue);
-  aF.appendChild(el('div','desc','Recolors the whole app — the ripple stays yours.'));
+  aF.appendChild(el('div','desc','Recolors the whole app â€” the ripple stays yours.'));
   pane.appendChild(aF);
 
   const fF = el('div','sfield');
@@ -2286,10 +3226,10 @@ function openQuickSwitcher(){
   if(qsOverlay){ closeQuickSwitcher(); return; }
   const ov = el('div','overlay'); ov.style.alignItems = 'flex-start';
   const modal = el('div','modal'); modal.id = 'qs-modal';
-  const input = el('input'); input.id = 'qs-input'; input.placeholder = 'Jump to a channel…';
+  const input = el('input'); input.id = 'qs-input'; input.placeholder = 'Jump to a channelâ€¦';
   const results = el('div'); results.id = 'qs-results';
   const hint = el('div','qs-hint');
-  hint.innerHTML = '<span>↑↓ navigate</span><span>Enter open</span><span>Esc close</span>';
+  hint.innerHTML = '<span>â†‘â†“ navigate</span><span>Enter open</span><span>Esc close</span>';
   modal.append(input, results, hint);
   ov.appendChild(modal);
   document.body.appendChild(ov);
@@ -2298,14 +3238,19 @@ function openQuickSwitcher(){
 
   const render = ()=>{
     const q = input.value.trim().toLowerCase();
-    const list = channels.filter(c=>!q || c.name.toLowerCase().includes(q));
+    const entries = [
+      ...channels.map(c=>({ kind:'channel', name:c.name, type:c.type, ref:c })),
+      ...dms.map(d=>({ kind:'dm', name:d.other.username, type:'dm', ref:d }))
+    ];
+    const list = entries.filter(c=>!q || c.name.toLowerCase().includes(q));
     qsSel = clamp(qsSel, 0, Math.max(0, list.length-1));
     results.innerHTML = '';
     list.forEach((c,i)=>{
       const item = el('div','qs-item'+(i===qsSel?' sel':''));
-      const ic = el('span','ch-icon'); ic.appendChild(svgUse(c.type==='voice'?'i-speaker':'i-hash'));
+      const ic = el('span','ch-icon'); ic.appendChild(svgUse(c.type==='voice'?'i-speaker':c.type==='dm'?'i-message':'i-hash'));
       item.append(ic, el('span', null, c.name));
-      item.addEventListener('click', ()=>{ closeQuickSwitcher(); openChannel(c); });
+      if(c.kind==='dm') item.appendChild(el('span','mr-sub','DM'));
+      item.addEventListener('click', ()=>{ closeQuickSwitcher(); c.kind==='dm' ? openDm(c.ref) : openChannel(c.ref); });
       item.addEventListener('mousemove', ()=>{ qsSel=i; render(); });
       results.appendChild(item);
     });
@@ -2316,7 +3261,7 @@ function openQuickSwitcher(){
     const list = results._list || [];
     if(e.key==='ArrowDown'){ e.preventDefault(); qsSel=clamp(qsSel+1,0,list.length-1); render(); }
     else if(e.key==='ArrowUp'){ e.preventDefault(); qsSel=clamp(qsSel-1,0,list.length-1); render(); }
-    else if(e.key==='Enter'){ e.preventDefault(); if(list[qsSel]){ closeQuickSwitcher(); openChannel(list[qsSel]); } }
+    else if(e.key==='Enter'){ e.preventDefault(); const c=list[qsSel]; if(c){ closeQuickSwitcher(); c.kind==='dm' ? openDm(c.ref) : openChannel(c.ref); } }
   });
   render();
   setTimeout(()=>input.focus(), 20);
@@ -2331,7 +3276,8 @@ document.addEventListener('keydown', (e)=>{
   if((e.ctrlKey||e.metaKey) && e.shiftKey && e.key.toLowerCase()==='m'){ e.preventDefault(); toggleMute(); return; }
   if((e.ctrlKey||e.metaKey) && e.shiftKey && e.key.toLowerCase()==='d'){ e.preventDefault(); toggleDeafen(); return; }
   if(e.key==='Escape'){
-    closeQuickSwitcher(); closeSettings(); closePopovers(); closeProfilePopout(); closeStatusMenu();
+    closeQuickSwitcher(); closeSettings(); closePopovers(); closeProfilePopout(); closeStatusMenu(); closeCtxMenu();
+    ['dm-search-ov','server-ov','chan-ov'].forEach(closeOverlayById);
     const lb = $('lightbox'); if(lb) lb.remove();
   }
 });
@@ -2351,3 +3297,5 @@ document.addEventListener('pointerdown', ()=>{ if(audioCtx && audioCtx.state==='
 </script>
 </body>
 </html>
+
+
