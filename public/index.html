@@ -199,12 +199,13 @@ html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after{an
 .channel-item.active .ch-icon{color:var(--accent)}
 .channel-item .ch-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .channel-item .ch-live{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
-.vc-members{padding:1px 0 4px 24px;display:flex;flex-direction:column;gap:2px}
-.vc-member{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-dim);padding:2px 6px;border-radius:6px}
-.vc-member .mini-av{width:18px;height:18px;border-radius:50%;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff;background-size:cover;background-position:center}
+.vc-members{padding:2px 0 4px 22px;display:flex;flex-wrap:wrap;gap:4px}
+.vc-member{position:relative;width:28px;height:28px;border-radius:50%;cursor:pointer;transition:transform .15s}
+.vc-member:hover{transform:scale(1.2);z-index:2}
+.vc-member .mini-av{width:28px;height:28px;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff;background-size:cover;background-position:center;pointer-events:none}
 .vc-member.speaking .mini-av{box-shadow:0 0 0 2px var(--accent)}
-.vc-member .m-mute{margin-left:auto;color:var(--danger);display:flex}
-.vc-member .m-mute svg{width:12px;height:12px}
+.vc-member .m-mute{position:absolute;bottom:-2px;right:-2px;background:var(--danger);border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.vc-member .m-mute svg{width:8px;height:8px;color:#fff}
 
 /* voice dock (persistent while connected) */
 #voice-dock{display:none;flex-direction:column;gap:8px;margin:0 10px 8px;padding:10px 12px;background:var(--bg-2);border:1px solid var(--border);border-radius:12px}
@@ -2603,6 +2604,14 @@ function setupLiveKitEvents(){
     }
   });
 
+  livekitRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers)=>{
+    refreshSidebarVoiceMembers();
+  });
+
+  livekitRoom.on(RoomEvent.ParticipantAttributesChanged, (change)=>{
+    refreshSidebarVoiceMembers();
+  });
+
   livekitRoom.on(RoomEvent.TrackSubscribed, (track, publication, participant)=>{
     if(track.kind === 'audio'){
       const audioEl = document.createElement('audio');
@@ -2908,14 +2917,34 @@ function refreshSidebarVoiceMembers(){
       const isSelf = identity === livekitRoom.localParticipant.identity;
       const remoteMuted = p.attributes && (p.attributes.muted === 'true' || p.attributes.deafened === 'true');
       const muted = isSelf ? (isMuted || isDeafened || (pttMode && !pttHeld)) : remoteMuted;
-      const row = el('div','vc-member');
-      row.dataset.peer = isSelf ? 'local' : identity;
+      const uid = nameToId[name];
+      const isSpeaking = p.isSpeaking && !muted;
+      const bubble = el('div','vc-member' + (isSpeaking ? ' speaking' : ''));
+      bubble.dataset.peer = isSelf ? 'local' : identity;
+      bubble.title = name + (muted ? ' [muted]' : '');
       const mini = makeAvatar(name, meta.avatar_color || '#58a6ff', 'mini-av');
-      row.appendChild(mini);
-      row.appendChild(el('span', null, name));
-      if(muted){ const m = el('span','m-mute'); m.appendChild(svgUse('i-mic-off')); row.appendChild(m); }
-      box.appendChild(row);
+      const prof = profiles[name] || {};
+      if(prof.avatar){ mini.style.backgroundImage = `url("${prof.avatar}")`; mini.textContent = ''; }
+      bubble.appendChild(mini);
+      if(muted){ const m = el('span','m-mute'); m.appendChild(svgUse('i-mic-off')); bubble.appendChild(m); }
+      bubble.addEventListener('click', e=>{
+        e.stopPropagation();
+        openProfilePopout(bubble, name, meta.avatar_color || '#58a6ff', uid);
+      });
+      box.appendChild(bubble);
     });
+  });
+  // also show other voice channels' participants count
+  channels.forEach(ch => {
+    if(ch.type !== 'voice') return;
+    const mb = document.querySelector(`.vc-members[data-for="${ch.id}"]`);
+    if(!mb) return;
+    if(ch.id === voiceChannel?.id) return; // already rendered
+    let count = 0;
+    if(livekitRoom && ch.id === voiceChannel?.id) count = 1 + livekitRoom.remoteParticipants.size;
+    if(!count){
+      // cross-channel participants: can't see without being there, just skip
+    }
   });
 }
 
