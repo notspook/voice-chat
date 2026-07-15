@@ -3335,22 +3335,6 @@ function renderMembers(){
   if(!list) return;
   list.innerHTML = '';
 
-  const viewingVoice = voiceChannel && activeChannel && activeChannel.id === voiceChannel.id && activeChannel.type === voiceChannel.type;
-  if(viewingVoice && livekitRoom && livekitRoom.localParticipant){
-    $('members-title').textContent = voiceChannel.type==='dm' ? 'In call' : 'In voice';
-    const all = [livekitRoom.localParticipant, ...livekitRoom.remoteParticipants.values()];
-    all.forEach(pp=>{
-      let meta = {};
-      try{ meta = JSON.parse(pp.metadata || '{}'); }catch{}
-      const isSelf = pp.identity === livekitRoom.localParticipant.identity;
-      const uname = meta.username || pp.name || pp.identity;
-      const uid = isSelf ? currentUser.id : meta.id;
-      const isBot = !!meta.bot || pp.identity==='music-bot';
-      list.appendChild(memberRow(uname, meta.avatar_color || (isSelf?currentUser.avatar_color:'#58a6ff'), isSelf ? 'you' : (isBot ? 'bot' : ''), uid, true, isBot));
-    });
-    return;
-  }
-
   if(activeChannel && activeChannel.type === 'dm' && activeChannel.dm){
     $('members-title').textContent = 'This conversation';
     list.appendChild(memberRow(currentUser.username, currentUser.avatar_color, 'you', currentUser.id, true));
