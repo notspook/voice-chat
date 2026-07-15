@@ -62,6 +62,34 @@ db.exec(`
     joined_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (server_id, user_id)
   );
+  CREATE TABLE IF NOT EXISTS roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_id INTEGER NOT NULL,
+    name TEXT NOT NULL DEFAULT 'new role',
+    color TEXT DEFAULT NULL,
+    hoist INTEGER DEFAULT 0,
+    position INTEGER DEFAULT 0,
+    permissions INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS member_roles (
+    server_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    PRIMARY KEY (server_id, user_id, role_id)
+  );
+  CREATE TABLE IF NOT EXISTS channel_overwrites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('role','member')),
+    target_id INTEGER NOT NULL,
+    allow INTEGER DEFAULT 0,
+    deny INTEGER DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS server_settings (
+    server_id INTEGER PRIMARY KEY,
+    auto_role_id INTEGER
+  );
   CREATE TABLE IF NOT EXISTS dm_participants (
     channel_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
@@ -166,9 +194,103 @@ function isDmParticipant(channelId, userId) {
 function canAccessChannel(channel, userId) {
   if (!channel) return false;
   if (channel.type === 'dm') return isDmParticipant(channel.id, userId);
-  return isServerMember(channel.server_id, userId);
+  if (!channel.server_id) return false;
+  if (!isServerMember(channel.server_id, userId)) return false;
+  const perm = channel.type === 'voice' ? PERM.CONNECT : PERM.READ_MESSAGES;
+  return checkPerms(channel.server_id, userId, perm, channel.id);
 }
 function publicUser(u){ return { id: u.id, username: u.username, avatar_color: u.avatar_color }; }
+
+/* ============================================================
+   PERMISSIONS  (Discord-like bitfield system)
+   ============================================================ */
+const PERM = {
+  CREATE_INSTANT_INVITE: 1n << 0n,
+  KICK_MEMBERS:          1n << 1n,
+  BAN_MEMBERS:           1n << 2n,
+  ADMINISTRATOR:         1n << 3n,
+  MANAGE_CHANNELS:       1n << 4n,
+  MANAGE_SERVER:         1n << 5n,
+  MANAGE_ROLES:          1n << 6n,
+  MANAGE_MESSAGES:       1n << 7n,
+  SEND_MESSAGES:         1n << 8n,
+  READ_MESSAGES:         1n << 9n,
+  CONNECT:               1n << 10n,
+  SPEAK:                 1n << 11n,
+  MUTE_MEMBERS:          1n << 12n,
+  DEAFEN_MEMBERS:        1n << 13n,
+  MOVE_MEMBERS:          1n << 14n,
+  CHANGE_NICKNAME:       1n << 15n,
+  MANAGE_NICKNAMES:      1n << 16n,
+  USE_SOUNDBOARD:        1n << 17n,
+};
+const PERM_ALL = Object.values(PERM).reduce((a,b) => a | b, 0n);
+
+function permsBigInt(v) { return BigInt(v || 0); }
+function hasPerm(userPerms, perm) { return (permsBigInt(userPerms) & perm) === perm; }
+function hasAdmin(userPerms) { return hasPerm(userPerms, PERM.ADMINISTRATOR); }
+
+/* Build effective permissions for a user in a given server, optionally for a specific channel */
+function effectivePerms(serverId, userId, channelId) {
+  const owner = db.prepare(`SELECT owner_id FROM servers WHERE id = ?`).get(serverId);
+  if (owner && owner.owner_id === userId) return PERM_ALL; // server owner has all
+
+  // Collect all role IDs for this user
+  const roleRows = db.prepare(`SELECT role_id FROM member_roles WHERE server_id = ? AND user_id = ?`).all(serverId, userId);
+  const roleIds = roleRows.map(r => r.role_id);
+
+  // Sum all role permissions
+  let perms = 0n;
+  if (roleIds.length) {
+    const roles = db.prepare(`SELECT permissions FROM roles WHERE id IN (${roleIds.map(()=>'?').join(',')})`).all(...roleIds);
+    roles.forEach(r => { perms |= permsBigInt(r.permissions); });
+  }
+
+  // If admin, return all
+  if (hasAdmin(perms) || (owner && owner.owner_id === userId)) return PERM_ALL;
+
+  // Apply channel overwrites if a channel is specified
+  if (channelId) {
+    // Role-based overwrites first (lowest role first, overwritten by higher)
+    if (roleIds.length) {
+      const roleOws = db.prepare(`SELECT allow, deny FROM channel_overwrites WHERE channel_id = ? AND type = 'role' AND target_id IN (${roleIds.map(()=>'?').join(',')}) ORDER BY id`).all(channelId, ...roleIds);
+      roleOws.forEach(ow => {
+        perms = (perms & ~permsBigInt(ow.deny)) | permsBigInt(ow.allow);
+      });
+    }
+    // Member-specific overwrite (applied last, highest priority)
+    const memOw = db.prepare(`SELECT allow, deny FROM channel_overwrites WHERE channel_id = ? AND type = 'member' AND target_id = ?`).get(channelId, userId);
+    if (memOw) {
+      perms = (perms & ~permsBigInt(memOw.deny)) | permsBigInt(memOw.allow);
+    }
+  }
+
+  return perms;
+}
+
+function checkPerms(serverId, userId, perm, channelId) {
+  if (hasAdmin(effectivePerms(serverId, userId, channelId))) return true;
+  return hasPerm(effectivePerms(serverId, userId, channelId), perm);
+}
+
+/* Check if user can access a channel (general + perms) */
+function canAccessChannelPerms(channel, userId) {
+  if (!channel) return false;
+  if (channel.type === 'dm') return isDmParticipant(channel.id, userId);
+  if (!channel.server_id) return false;
+  const perm = channel.type === 'voice' ? PERM.CONNECT : PERM.READ_MESSAGES;
+  return isServerMember(channel.server_id, userId) && checkPerms(channel.server_id, userId, perm, channel.id);
+}
+
+/* Default role permissions for new servers */
+const DEFAULT_ROLE_PERMS = PERM.READ_MESSAGES | PERM.SEND_MESSAGES | PERM.CONNECT | PERM.SPEAK | PERM.CREATE_INSTANT_INVITE | PERM.USE_SOUNDBOARD | PERM.CHANGE_NICKNAME;
+
+function assignAutoRole(serverId, userId) {
+  const setting = db.prepare(`SELECT auto_role_id FROM server_settings WHERE server_id = ?`).get(serverId);
+  if (setting && setting.auto_role_id) {
+    db.prepare(`INSERT OR IGNORE INTO member_roles (server_id, user_id, role_id) VALUES (?, ?, ?)`).run(serverId, userId, setting.auto_role_id);
+  }
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -191,6 +313,7 @@ app.post('/api/register', (req, res) => {
   const color = colors[crypto.randomBytes(1)[0] % colors.length];
   const r = db.prepare('INSERT INTO users (username, password_hash, avatar_color) VALUES (?, ?, ?)').run(uname, hashPassword(password), color);
   db.prepare('INSERT OR IGNORE INTO server_members (server_id, user_id) VALUES (?, ?)').run(defaultServer.id, r.lastInsertRowid);
+  assignAutoRole(defaultServer.id, r.lastInsertRowid);
   const user = db.prepare('SELECT id, username, avatar_color FROM users WHERE id = ?').get(r.lastInsertRowid);
   const token = generateToken();
   db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
@@ -204,6 +327,7 @@ app.post('/api/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid username or password' });
   }
   db.prepare('INSERT OR IGNORE INTO server_members (server_id, user_id) VALUES (?, ?)').run(defaultServer.id, user.id);
+  assignAutoRole(defaultServer.id, user.id);
   const token = generateToken();
   db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
   res.json({ token, user: publicUser(user) });
@@ -219,7 +343,8 @@ function safeParse(s){ try { return JSON.parse(s || '{}') || {}; } catch { retur
 /* ============================================================
    PROFILES (server-side so they sync across devices/apps)
    ============================================================ */
-const PROFILE_LIMITS = { about: 300, nameColor: 16, nameFont: 12, banner: 64, bannerImage: 400000, avatar: 150000 };
+const PROFILE_LIMITS = { about: 300, nameColor: 16, nameFont: 12, banner: 64, bannerImage: 400000, avatar: 150000, popoutColor: 24 };
+const ICON_LIMIT = 200000;
 function sanitizeProfileServer(p) {
   const s = {};
   if (!p || typeof p !== 'object') return s;
@@ -230,6 +355,7 @@ function sanitizeProfileServer(p) {
       /^(#[0-9a-fA-F]{3,8}|linear-gradient\(135deg,#[0-9a-fA-F]{3,8},#[0-9a-fA-F]{3,8}\))$/.test(p.banner)) s.banner = p.banner;
   if (typeof p.bannerImage === 'string' && p.bannerImage.startsWith('data:image/') && p.bannerImage.length <= PROFILE_LIMITS.bannerImage) s.bannerImage = p.bannerImage;
   if (typeof p.avatar === 'string' && p.avatar.startsWith('data:image/') && p.avatar.length <= PROFILE_LIMITS.avatar) s.avatar = p.avatar;
+  if (typeof p.popoutColor === 'string' && p.popoutColor.length <= PROFILE_LIMITS.popoutColor && /^#[0-9a-fA-F]{3,8}$/.test(p.popoutColor)) s.popoutColor = p.popoutColor;
   return s;
 }
 
@@ -290,6 +416,7 @@ app.post('/api/servers/join', (req, res) => {
   const s = db.prepare(`SELECT * FROM servers WHERE invite_code = ?`).get(code);
   if (!s) return res.status(404).json({ error: 'Invalid invite code' });
   db.prepare(`INSERT OR IGNORE INTO server_members (server_id, user_id) VALUES (?, ?)`).run(s.id, u.id);
+  assignAutoRole(s.id, u.id);
   io.emit('server-members-changed', { serverId: s.id });
   res.json({ id: s.id, name: s.name, owner_id: s.owner_id, invite_code: s.invite_code, icon: s.icon });
 });
@@ -325,6 +452,24 @@ app.post('/api/servers/:id/channels', (req, res) => {
   res.json(db.prepare(`SELECT id, name, type, position, server_id FROM channels WHERE id = ?`).get(r.lastInsertRowid));
 });
 
+app.delete('/api/servers/:id/channels/:channelId', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const sid = parseInt(req.params.id, 10);
+  const cid = parseInt(req.params.channelId, 10);
+  const s = db.prepare(`SELECT * FROM servers WHERE id = ?`).get(sid);
+  if (!s) return res.status(404).json({ error: 'No such server' });
+  const ch = db.prepare(`SELECT * FROM channels WHERE id = ? AND server_id = ?`).get(cid, sid);
+  if (!ch) return res.status(404).json({ error: 'No such channel' });
+  if (s.owner_id !== u.id && !checkPerms(sid, u.id, PERM.MANAGE_CHANNELS)) return res.status(403).json({ error: 'Need Manage Channels' });
+  const count = (db.prepare(`SELECT COUNT(*) AS c FROM channels WHERE server_id = ?`).get(sid).c);
+  if (count <= 1) return res.status(400).json({ error: "Can't delete the last channel" });
+  db.prepare(`DELETE FROM messages WHERE channel_id = ?`).run(cid);
+  db.prepare(`DELETE FROM channel_overwrites WHERE channel_id = ?`).run(cid);
+  db.prepare(`DELETE FROM channels WHERE id = ?`).run(cid);
+  io.emit('channels-changed', { serverId: sid });
+  res.json({ ok: true });
+});
+
 app.get('/api/servers/:id/members', (req, res) => {
   const u = requireAuth(req, res); if (!u) return;
   const sid = parseInt(req.params.id, 10);
@@ -333,6 +478,190 @@ app.get('/api/servers/:id/members', (req, res) => {
     SELECT u.id, u.username, u.avatar_color, u.profile FROM server_members m
     JOIN users u ON u.id = m.user_id WHERE m.server_id = ? ORDER BY u.username COLLATE NOCASE`).all(sid);
   res.json(rows.map(r => ({ ...publicUser(r), profile: safeParse(r.profile) })));
+});
+
+/* ============================================================
+   ROLES & PERMISSIONS
+   ============================================================ */
+
+/* ---- Roles ---- */
+app.get('/api/servers/:id/roles', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const sid = parseInt(req.params.id, 10);
+  if (!isServerMember(sid, u.id)) return res.status(403).json({ error: 'Not a member' });
+  const roles = db.prepare(`SELECT * FROM roles WHERE server_id = ? ORDER BY position DESC, id ASC`).all(sid);
+  res.json(roles);
+});
+
+app.post('/api/servers/:id/roles', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const sid = parseInt(req.params.id, 10);
+  const s = db.prepare(`SELECT * FROM servers WHERE id = ?`).get(sid);
+  if (!s) return res.status(404).json({ error: 'No such server' });
+  if (s.owner_id !== u.id && !checkPerms(sid, u.id, PERM.MANAGE_ROLES)) return res.status(403).json({ error: 'You need the Manage Roles permission' });
+  const name = String(req.body.name || 'new role').trim().slice(0, 32);
+  const maxPos = (db.prepare(`SELECT MAX(position) AS p FROM roles WHERE server_id = ?`).get(sid).p || 0);
+  const r = db.prepare(`INSERT INTO roles (server_id, name, position, permissions) VALUES (?, ?, ?, ?)`).run(sid, name, maxPos + 1, Number(DEFAULT_ROLE_PERMS));
+  io.emit('roles-changed', { serverId: sid });
+  res.json(db.prepare(`SELECT * FROM roles WHERE id = ?`).get(r.lastInsertRowid));
+});
+
+app.put('/api/roles/:id', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const rid = parseInt(req.params.id, 10);
+  const role = db.prepare(`SELECT * FROM roles WHERE id = ?`).get(rid);
+  if (!role) return res.status(404).json({ error: 'No such role' });
+  if (!isServerMember(role.server_id, u.id)) return res.status(403).json({ error: 'Not a member' });
+  if (!checkPerms(role.server_id, u.id, PERM.MANAGE_ROLES)) return res.status(403).json({ error: 'You need the Manage Roles permission' });
+  const b = req.body || {};
+  const updates = [];
+  const params = [];
+  if (b.name !== undefined) { updates.push('name = ?'); params.push(String(b.name).trim().slice(0, 32)); }
+  if (b.color !== undefined) { const c = String(b.color||'').trim(); updates.push('color = ?'); params.push(/^#[0-9a-fA-F]{3,8}$/.test(c) ? c : null); }
+  if (b.hoist !== undefined) { updates.push('hoist = ?'); params.push(b.hoist ? 1 : 0); }
+  if (b.permissions !== undefined) { updates.push('permissions = ?'); params.push(Number(b.permissions)); }
+  if (updates.length) {
+    params.push(rid);
+    db.prepare(`UPDATE roles SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  }
+  io.emit('roles-changed', { serverId: role.server_id });
+  io.emit('channels-changed', { serverId: role.server_id });
+  res.json(db.prepare(`SELECT * FROM roles WHERE id = ?`).get(rid));
+});
+
+app.delete('/api/roles/:id', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const rid = parseInt(req.params.id, 10);
+  const role = db.prepare(`SELECT * FROM roles WHERE id = ?`).get(rid);
+  if (!role) return res.status(404).json({ error: 'No such role' });
+  if (!isServerMember(role.server_id, u.id)) return res.status(403).json({ error: 'Not a member' });
+  const s = db.prepare(`SELECT owner_id FROM servers WHERE id = ?`).get(role.server_id);
+  if (s.owner_id !== u.id && !checkPerms(role.server_id, u.id, PERM.MANAGE_ROLES)) return res.status(403).json({ error: 'Need Manage Roles' });
+  db.prepare(`DELETE FROM roles WHERE id = ?`).run(rid);
+  db.prepare(`DELETE FROM member_roles WHERE role_id = ?`).run(rid);
+  db.prepare(`DELETE FROM channel_overwrites WHERE type = 'role' AND target_id = ?`).run(rid);
+  io.emit('roles-changed', { serverId: role.server_id });
+  res.json({ ok: true });
+});
+
+/* ---- Member roles ---- */
+app.get('/api/servers/:id/members/:userId/roles', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const sid = parseInt(req.params.id, 10);
+  if (!isServerMember(sid, u.id)) return res.status(403).json({ error: 'Not a member' });
+  const tuid = parseInt(req.params.userId, 10);
+  if (!isServerMember(sid, tuid)) return res.status(404).json({ error: 'Not a member' });
+  const rows = db.prepare(`SELECT role_id FROM member_roles WHERE server_id = ? AND user_id = ?`).all(sid, tuid);
+  res.json(rows.map(r => r.role_id));
+});
+
+app.put('/api/servers/:id/members/:userId/roles', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const sid = parseInt(req.params.id, 10);
+  if (!isServerMember(sid, u.id)) return res.status(403).json({ error: 'Not a member' });
+  if (!checkPerms(sid, u.id, PERM.MANAGE_ROLES)) return res.status(403).json({ error: 'Need Manage Roles' });
+  const tuid = parseInt(req.params.userId, 10);
+  if (!isServerMember(sid, tuid)) return res.status(404).json({ error: 'Target not a member' });
+  const roleIds = (req.body.roles || []).map(n => parseInt(n, 10)).filter(Boolean);
+  db.prepare(`DELETE FROM member_roles WHERE server_id = ? AND user_id = ?`).run(sid, tuid);
+  const ins = db.prepare(`INSERT OR IGNORE INTO member_roles (server_id, user_id, role_id) VALUES (?, ?, ?)`);
+  for (const rid of roleIds) {
+    ins.run(sid, tuid, rid);
+  }
+  io.emit('member-roles-changed', { serverId: sid, userId: tuid });
+  res.json({ ok: true });
+});
+
+/* ---- Channel permission overwrites ---- */
+app.get('/api/channels/:id/permissions', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const ch = db.prepare(`SELECT * FROM channels WHERE id = ?`).get(req.params.id);
+  if (!canAccessChannel(ch, u.id)) return res.status(403).json({ error: 'No access' });
+  const overwrites = db.prepare(`SELECT * FROM channel_overwrites WHERE channel_id = ?`).all(ch.id);
+  res.json(overwrites);
+});
+
+app.put('/api/channels/:id/permissions', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const ch = db.prepare(`SELECT * FROM channels WHERE id = ?`).get(req.params.id);
+  if (!ch || !ch.server_id) return res.status(404).json({ error: 'No such channel' });
+  if (!isServerMember(ch.server_id, u.id)) return res.status(403).json({ error: 'Not a member' });
+  if (!checkPerms(ch.server_id, u.id, PERM.MANAGE_CHANNELS)) return res.status(403).json({ error: 'Need Manage Channels' });
+  const { type, targetId, allow, deny } = req.body || {};
+  if (!type || !targetId) return res.status(400).json({ error: 'type and targetId required' });
+  if (!['role','member'].includes(type)) return res.status(400).json({ error: 'type must be "role" or "member"' });
+  const existing = db.prepare(`SELECT * FROM channel_overwrites WHERE channel_id = ? AND type = ? AND target_id = ?`).get(ch.id, type, targetId);
+  if (existing) {
+    db.prepare(`UPDATE channel_overwrites SET allow = ?, deny = ? WHERE id = ?`).run(Number(allow||0), Number(deny||0), existing.id);
+  } else {
+    db.prepare(`INSERT INTO channel_overwrites (channel_id, type, target_id, allow, deny) VALUES (?, ?, ?, ?, ?)`).run(ch.id, type, targetId, Number(allow||0), Number(deny||0));
+  }
+  io.emit('channels-changed', { serverId: ch.server_id });
+  res.json({ ok: true });
+});
+
+app.delete('/api/channels/:id/permissions', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const ch = db.prepare(`SELECT * FROM channels WHERE id = ?`).get(req.params.id);
+  if (!ch || !ch.server_id) return res.status(404).json({ error: 'No such channel' });
+  if (!isServerMember(ch.server_id, u.id)) return res.status(403).json({ error: 'Not a member' });
+  if (!checkPerms(ch.server_id, u.id, PERM.MANAGE_CHANNELS)) return res.status(403).json({ error: 'Need Manage Channels' });
+  const { type, targetId } = req.body || {};
+  db.prepare(`DELETE FROM channel_overwrites WHERE channel_id = ? AND type = ? AND target_id = ?`).run(ch.id, type, targetId);
+  io.emit('channels-changed', { serverId: ch.server_id });
+  res.json({ ok: true });
+});
+
+/* ---- Server icon ---- */
+app.put('/api/servers/:id/icon', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const sid = parseInt(req.params.id, 10);
+  const s = db.prepare(`SELECT * FROM servers WHERE id = ?`).get(sid);
+  if (!s) return res.status(404).json({ error: 'No such server' });
+  if (s.owner_id !== u.id && !checkPerms(sid, u.id, PERM.MANAGE_SERVER)) return res.status(403).json({ error: 'Need Manage Server' });
+  const icon = String(req.body.icon || '');
+  if (!icon) {
+    db.prepare(`UPDATE servers SET icon = NULL WHERE id = ?`).run(sid);
+  } else if (icon.startsWith('data:image/') && icon.length <= ICON_LIMIT) {
+    db.prepare(`UPDATE servers SET icon = ? WHERE id = ?`).run(icon, sid);
+  } else {
+    return res.status(400).json({ error: 'Invalid icon' });
+  }
+  io.emit('server-icon-changed', { serverId: sid });
+  res.json({ ok: true });
+});
+
+/* ---- Server settings (auto-role, etc.) ---- */
+app.get('/api/servers/:id/settings', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const sid = parseInt(req.params.id, 10);
+  if (!isServerMember(sid, u.id)) return res.status(403).json({ error: 'Not a member' });
+  res.json(db.prepare(`SELECT * FROM server_settings WHERE server_id = ?`).get(sid) || { server_id: sid, auto_role_id: null });
+});
+
+app.put('/api/servers/:id/settings', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const sid = parseInt(req.params.id, 10);
+  if (!isServerMember(sid, u.id)) return res.status(403).json({ error: 'Not a member' });
+  if (!checkPerms(sid, u.id, PERM.MANAGE_SERVER)) return res.status(403).json({ error: 'Need Manage Server' });
+  const b = req.body || {};
+  const existing = db.prepare(`SELECT * FROM server_settings WHERE server_id = ?`).get(sid);
+  if (existing) {
+    db.prepare(`UPDATE server_settings SET auto_role_id = ? WHERE server_id = ?`).run(b.auto_role_id || null, sid);
+  } else {
+    db.prepare(`INSERT INTO server_settings (server_id, auto_role_id) VALUES (?, ?)`).run(sid, b.auto_role_id || null);
+  }
+  res.json({ ok: true, auto_role_id: b.auto_role_id || null });
+});
+
+/* check a user's own effective perms (useful for UI) */
+app.get('/api/servers/:id/my-permissions', (req, res) => {
+  const u = requireAuth(req, res); if (!u) return;
+  const sid = parseInt(req.params.id, 10);
+  if (!isServerMember(sid, u.id)) return res.status(403).json({ error: 'Not a member' });
+  const channelId = req.query.channelId ? parseInt(req.query.channelId, 10) : null;
+  const perms = effectivePerms(sid, u.id, channelId);
+  res.json({ permissions: Number(perms) });
 });
 
 /* ============================================================

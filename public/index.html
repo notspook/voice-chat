@@ -397,6 +397,48 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .theme-cards{display:flex;gap:10px;flex-wrap:wrap}
 .theme-card{width:120px;border-radius:12px;border:2px solid var(--border);overflow:hidden;cursor:pointer;transition:border-color .15s}
 .theme-card.sel{border-color:var(--accent)}
+.server-settings-modal{width:780px;max-width:calc(100vw - 28px);height:580px;max-height:calc(100vh - 40px);display:flex;overflow:hidden}
+.server-settings-nav{width:186px;flex-shrink:0;background:var(--bg-1);padding:18px 10px;border-right:1px solid var(--border-soft);overflow-y:auto}
+.server-settings-nav h5{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-faint);padding:0 10px;margin:0 0 8px}
+.server-settings-body{flex:1;padding:26px 30px;overflow-y:auto;position:relative}
+.server-settings-body h3{font-family:var(--font-display);font-size:19px;font-weight:700;margin-bottom:20px}
+
+/* Roles */
+.srole-list{display:flex;flex-direction:column;gap:4px;margin-bottom:18px}
+.srole-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer;transition:background .13s;font-size:14px}
+.srole-item:hover{background:var(--bg-3)}
+.srole-item.active{background:var(--accent-soft)}
+.role-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;background:var(--text-dim)}
+.perm-grid{display:flex;flex-direction:column;gap:1px;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.perm-row{display:flex;align-items:center;padding:8px 12px;background:var(--bg-1);gap:10px}
+.perm-row:nth-child(even){background:var(--bg-2)}
+.perm-row .perm-label{flex:1;font-size:13.5px;font-weight:500}
+.perm-row .perm-desc{font-size:11px;color:var(--text-faint);display:block}
+.perm-row .perm-check{width:20px;height:20px;border-radius:5px;border:2px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .13s;flex-shrink:0}
+.perm-row .perm-check.on{background:var(--accent);border-color:var(--accent)}
+.perm-row .perm-check svg{width:13px;height:13px;color:#04211C;display:none}
+.perm-row .perm-check.on svg{display:block}
+.perm-row .perm-check:hover{border-color:var(--accent)}
+.perm-row .perm-check.partial{background:var(--accent-soft);border-color:var(--accent)}
+
+.role-color-input{width:36px;height:36px;border:none;border-radius:8px;cursor:pointer;padding:0;background:none}
+.hoist-toggle{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--text-dim)}
+.hoist-toggle .toggle{flex-shrink:0}
+
+/* Role badges in members list */
+.mr-role-badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
+.mr-role-badge{font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--bg-4);color:var(--text-faint);white-space:nowrap}
+
+/* Channel perm overwrite list */
+.chperm-list{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.chperm-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--bg-1);font-size:13.5px}
+.chperm-item .chperm-name{flex:1;font-weight:500}
+.chperm-item .chperm-actions{display:flex;gap:6px}
+.chperm-item .chperm-btn{padding:4px 8px;border-radius:6px;font-size:12px;font-weight:600;background:var(--bg-3);color:var(--text-dim);border:1px solid var(--border)}
+.chperm-item .chperm-btn:hover{background:var(--bg-4)}
+.chperm-item .chperm-btn.on{background:var(--accent-soft);color:var(--accent-strong)}
+.chperm-item .chperm-btn.deny{background:var(--danger-soft);color:var(--danger)}
+
 .theme-card .tc-prev{height:58px}
 .theme-card .tc-name{font-size:12px;font-weight:600;text-align:center;padding:6px;background:var(--bg-3)}
 .btn{padding:9px 16px;border-radius:9px;font-size:14px;font-weight:600;background:var(--bg-4);border:1px solid var(--border);transition:all .13s}
@@ -516,6 +558,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4.6c0-.8.87-1.3 1.55-.88l11.05 6.9a1.04 1.04 0 0 1 0 1.76L8.55 19.28A1.04 1.04 0 0 1 7 18.4V4.6Z"/></symbol>
     <symbol id="i-skip" viewBox="0 0 24 24"><path fill="currentColor" d="M5 4.6c0-.8.87-1.3 1.55-.88L15 8.9V4.5a1 1 0 0 1 2 0v15a1 1 0 1 1-2 0v-4.4l-8.45 5.18A1.04 1.04 0 0 1 5 19.4V4.6Z"/></symbol>
     <symbol id="i-attach" viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 6.5v9a4.5 4.5 0 1 1-9 0V6a3 3 0 0 1 6 0v9a1.5 1.5 0 0 1-3 0V7H9v8a3 3 0 0 0 6 0V6a4.5 4.5 0 0 0-9 0v9.5a6 6 0 0 0 12 0v-9h-1.5Z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17l-3.59-3.59L4 14l5 5 10-10-1.41-1.41L9 16.17Z"/></symbol>
   </defs>
 </svg>
 
@@ -910,9 +953,54 @@ async function loadServerMembers(){
   try{
     serverMembers = await (await api(`/api/servers/${activeServer.id}/members`)).json();
     serverMembers.forEach(m=>{ rememberUser(m); if(m.profile && m.username!==currentUser.username) profiles[m.username] = m.profile; });
+    // Load member roles
+    if(serverRoles.length){
+      for(const m of serverMembers){
+        try{
+          const rids = await (await api(`/api/servers/${activeServer.id}/members/${m.id}/roles`)).json();
+          memberRoles[m.id] = rids;
+        }catch{ memberRoles[m.id] = []; }
+      }
+    }
     renderMembers();
   }catch{}
 }
+let serverRoles = [];
+let serverSettings = {};
+async function loadRoles(){
+  if(!activeServer){ serverRoles = []; return; }
+  try{
+    const [roles, settings] = await Promise.all([
+      (await api(`/api/servers/${activeServer.id}/roles`)).json(),
+      (await api(`/api/servers/${activeServer.id}/settings`)).json()
+    ]);
+    serverRoles = roles;
+    serverSettings = settings;
+  }catch{ serverRoles = []; }
+  renderRolesUi();
+}
+function renderRolesUi(){
+  const el = $('server-roles-list');
+  if(!el) return;
+  el.innerHTML = '';
+  serverRoles.forEach(r=>{
+    const item = el('div','srole-item');
+    const dot = el('span','role-dot'); dot.style.background = r.color || 'var(--text-dim)';
+    item.appendChild(dot);
+    item.appendChild(el('span', null, r.name));
+    el.appendChild(item);
+  });
+}
+function getMemberRoles(userId){
+  if(!activeServer) return [];
+  return serverRoles.filter(r => {
+    const rows = db.prepare ? [] : [];
+    // roles are stored in memory via member data
+    return memberRoles[userId] ? memberRoles[userId].includes(r.id) : false;
+  });
+}
+const memberRoles = {}; // userId -> [roleId, ...]
+
 async function loadDms(){
   try{
     dms = await (await api('/api/dms')).json();
@@ -985,6 +1073,8 @@ function connectSocket(){
   /* ---- structure changes ---- */
   socket.on('channels-changed', ({serverId})=>{ if(activeServer && serverId===activeServer.id){ loadChannels().then(renderChannels); } });
   socket.on('server-members-changed', ({serverId})=>{ if(activeServer && serverId===activeServer.id) loadServerMembers(); });
+  socket.on('roles-changed', ({serverId})=>{ if(activeServer && serverId===activeServer.id){ loadRoles().then(renderRolesUi); renderMembers(); } });
+  socket.on('member-roles-changed', ({serverId})=>{ if(activeServer && serverId===activeServer.id) renderMembers(); });
 
   /* ---- music ---- */
   socket.on('music-state', (state)=>{
@@ -1021,15 +1111,17 @@ function renderRail(){
   servers.forEach(sv=>{
     const it = el('div','rail-item'+((view==='server' && activeServer && sv.id===activeServer.id)?' active':''));
     it.title = sv.name;
-    it.textContent = getInitials(sv.name);
+    if(sv.icon){ it.style.backgroundImage = `url("${sv.icon}")`; it.style.backgroundSize = 'cover'; it.style.backgroundPosition = 'center'; it.textContent = ''; }
+    else it.textContent = getInitials(sv.name);
     it.dataset.server = sv.id;
     it.addEventListener('click', ()=>selectServer(sv));
     it.addEventListener('contextmenu', (e)=>{
       e.preventDefault();
       const items = [
+        { label:'Server settings', icon:'i-settings', fn:()=>openServerSettings(sv) },
         { label:'Copy invite code', icon:'i-copy', fn:()=>copyText(sv.invite_code, 'Invite code') },
       ];
-      if(sv.owner_id === currentUser.id) items.push({ label:'Create channel', icon:'i-plus', fn:()=>openCreateChannel(sv) });
+      if(sv.owner_id === currentUser.id || canManageServer(sv)) items.push({ label:'Create channel', icon:'i-plus', fn:()=>openCreateChannel(sv) });
       if(sv.owner_id !== currentUser.id || servers.length>1) items.push({ sep:true }, { label:'Leave server', icon:'i-leave', danger:true, fn:()=>leaveServer(sv) });
       showCtxMenu(e.clientX, e.clientY, items);
     });
@@ -1068,7 +1160,7 @@ async function selectServer(sv){
   $('server-section').classList.remove('hidden');
   $('home-section').classList.add('hidden');
   $('sidebar-title').textContent = sv.name;
-  await loadChannels();
+  await Promise.all([loadChannels(), loadRoles()]);
   renderRail(); renderChannels();
   const firstText = channels.find(c=>c.type==='text');
   if(firstText) openChannel(firstText);
@@ -1301,6 +1393,469 @@ function openCreateChannel(sv){
   setTimeout(()=>i.focus(), 20);
 }
 
+/* ---- Server Settings modal (roles, perms, channels, auto-role, icon) ---- */
+let ssOv = null;
+let ssActiveRole = null;
+
+function openServerSettings(sv){
+  closeOverlayById('ss-ov');
+  const ov = el('div','overlay'); ov.id='ss-ov';
+  const modal = el('div','modal server-settings-modal');
+  const nav = el('div','server-settings-nav');
+  const body = el('div','server-settings-body');
+  modal.append(nav, body); ov.appendChild(modal);
+  document.body.appendChild(ov); ssOv = ov;
+  ov.addEventListener('click', e=>{ if(e.target===ov) closeSs(); });
+
+  const panes = [];
+  if(sv.owner_id === currentUser.id || true){ // all members can see roles, only manage_roles can edit
+    panes.push(['roles','Roles', ()=>paneRoles(sv, body)]);
+    panes.push(['channels','Channels', ()=>paneChannels(sv, body)]);
+  }
+  panes.push(['general','General', ()=>paneGeneral(sv, body)]);
+
+  nav.appendChild(el('h5', null, 'Server settings'));
+  let navItems = [];
+  panes.forEach(([id, label, build])=>{
+    const b = el('button','snav-item', label);
+    b.addEventListener('click', ()=>{ navItems.forEach(x=>x.classList.remove('active')); b.classList.add('active'); renderPane(build); });
+    navItems.push(b); nav.appendChild(b);
+  });
+  const lo = el('button','snav-item danger','Close');
+  lo.addEventListener('click', closeSs);
+  nav.appendChild(lo);
+
+  function renderPane(build){
+    body.innerHTML = '';
+    body.appendChild(build());
+  }
+  navItems[0].classList.add('active');
+  renderPane(()=>paneRoles(sv, body));
+
+  loadRolesAndSettings(sv);
+}
+
+async function loadRolesAndSettings(sv){
+  try{
+    const [roles, settings] = await Promise.all([
+      (await api(`/api/servers/${sv.id}/roles`)).json(),
+      (await api(`/api/servers/${sv.id}/settings`)).json()
+    ]);
+    serverRoles = roles;
+    serverSettings = settings;
+    renderRolesUi();
+  }catch{}
+  try{ await fetchMyPerms(sv.id); }catch{}
+}
+
+function closeSs(){ if(ssOv){ ssOv.remove(); ssOv=null; } }
+
+/* ---- General settings tab ---- */
+function paneGeneral(sv, body){
+  const pane = el('div','spane');
+  pane.appendChild(el('h3', null, 'General'));
+
+  const canEdit = sv.owner_id === currentUser.id || hasPermCheck(myPerms[sv.id]||0, PERM_BITS.MANAGE_SERVER);
+
+  // Server icon
+  const iconField = el('div','sfield');
+  iconField.appendChild(el('label', null, 'Server icon'));
+  const curIcon = el('div'); curIcon.style.cssText='display:flex;align-items:center;gap:12px;margin-bottom:10px';
+  const iconPreview = el('div'); iconPreview.style.cssText='width:48px;height:48px;border-radius:14px;background:var(--bg-2);background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--text-dim);border:1px solid var(--border)';
+  if(sv.icon) iconPreview.style.backgroundImage = `url("${sv.icon}")`;
+  else iconPreview.textContent = getInitials(sv.name);
+  curIcon.appendChild(iconPreview);
+  const iconBtns = el('div'); iconBtns.style.cssText='display:flex;gap:6px';
+  const upIcon = el('button','btn', 'Upload icon');
+  const remIcon = el('button','btn ghost', 'Remove');
+  iconBtns.append(upIcon, remIcon);
+  curIcon.appendChild(iconBtns);
+  iconField.appendChild(curIcon);
+  if(!canEdit) iconField.appendChild(el('div','desc','Only the server owner or members with Manage Server can change this.'));
+  pane.appendChild(iconField);
+
+  const iconFile = el('input'); iconFile.type='file'; iconFile.accept='image/*'; iconFile.className='hidden';
+  iconFile.onchange = async ()=>{
+    const f = iconFile.files[0]; iconFile.value='';
+    if(!f) return;
+    try{
+      let dataUrl;
+      if(f.type==='image/gif' && f.size < 150000){
+        dataUrl = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(f); });
+      }else{
+        dataUrl = await compressImage(f, 150000);
+      }
+      if(!dataUrl || dataUrl.length > 200000){ toast('Icon too large.'); return; }
+      await api(`/api/servers/${sv.id}/icon`, { method:'PUT', body:JSON.stringify({icon: dataUrl}) });
+      sv.icon = dataUrl;
+      toast('Server icon updated.');
+      renderRail();
+      closeSs();
+    }catch{ toast('Failed.'); }
+  };
+  document.body.appendChild(iconFile);
+  upIcon.addEventListener('click', ()=>iconFile.click());
+  remIcon.addEventListener('click', async ()=>{
+    if(!canEdit){ toast('No permission.'); return; }
+    await api(`/api/servers/${sv.id}/icon`, { method:'PUT', body:JSON.stringify({icon: ''}) });
+    sv.icon = '';
+    renderRail(); closeSs();
+  });
+
+  // Auto-role
+  const arField = el('div','sfield');
+  arField.appendChild(el('label', null, 'Auto-role for new members'));
+  if(canEdit){
+    const arSel = el('select');
+    const none = el('option', null, 'None (no auto-role)'); none.value=''; arSel.appendChild(none);
+    serverRoles.forEach(r=>{
+      const o = el('option', null, r.name); o.value=r.id;
+      if(serverSettings.auto_role_id == r.id) o.selected = true;
+      arSel.appendChild(o);
+    });
+    arSel.addEventListener('change', async ()=>{
+      try{
+        await api(`/api/servers/${sv.id}/settings`, { method:'PUT', body:JSON.stringify({auto_role_id: arSel.value ? parseInt(arSel.value,10) : null}) });
+        toast('Auto-role updated.');
+        serverSettings.auto_role_id = arSel.value ? parseInt(arSel.value,10) : null;
+      }catch{ toast('Failed to update.','err'); }
+    });
+    arField.appendChild(arSel);
+  } else {
+    arField.appendChild(el('div','desc','Only the server owner or members with Manage Server can change this.'));
+  }
+  pane.appendChild(arField);
+
+  // Invite code
+  const invField = el('div','sfield');
+  invField.appendChild(el('label', null, 'Invite code'));
+  const invRow = el('div'); invRow.style.cssText='display:flex;gap:8px;align-items:center';
+  const invCode = el('code', null, sv.invite_code); invCode.style.cssText='background:var(--bg-3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:14px';
+  const invBtn = el('button','btn ghost','Copy');
+  invBtn.addEventListener('click', ()=>copyText(sv.invite_code, 'Invite code'));
+  invRow.append(invCode, invBtn);
+  invField.appendChild(invRow);
+  pane.appendChild(invField);
+
+  const ownerName = sv.owner_id ? (serverMembers.find(m=>m.id===sv.owner_id)?.username || '?') : 'Ripple';
+  pane.appendChild(el('div','desc', `Server owner: ${ownerName} · ${serverMembers.length} members`));
+  return pane;
+}
+
+/* ---- Roles tab ---- */
+function paneRoles(sv, body){
+  const pane = el('div','spane');
+  pane.appendChild(el('h3', null, 'Roles'));
+  const canEdit = sv.owner_id === currentUser.id || hasPermCheck(myPerms[sv.id]||0, PERM_BITS.MANAGE_ROLES);
+
+  const list = el('div','srole-list'); list.id = 'server-roles-list';
+  pane.appendChild(list);
+
+  if(canEdit){
+    const addBtn = el('button','btn','Create role');
+    addBtn.addEventListener('click', async ()=>{
+      const r = await (await api(`/api/servers/${sv.id}/roles`, { method:'POST', body:'{}' })).json();
+      if(r.error){ toast(r.error,'err'); return; }
+      serverRoles.push(r);
+      renderRolesUi();
+      // open role editor for the new role
+      ssActiveRole = r.id;
+      openRoleEditor(sv, r, body);
+    });
+    pane.appendChild(addBtn);
+  }
+
+  // Role editor inline below
+  const editorArea = el('div'); editorArea.id = 'role-editor-area';
+  pane.appendChild(editorArea);
+
+  // Click on role to edit
+  list.addEventListener('click', (e)=>{
+    const item = e.target.closest('.srole-item');
+    if(!item || !canEdit) return;
+    const rid = parseInt(item.dataset.rid, 10);
+    const role = serverRoles.find(r=>r.id===rid);
+    if(role){ ssActiveRole = rid; openRoleEditor(sv, role, body); }
+  });
+
+  renderRolesUi();
+  if(ssActiveRole){
+    const role = serverRoles.find(r=>r.id===ssActiveRole);
+    if(role) openRoleEditor(sv, role, body);
+  }
+  return pane;
+}
+
+function renderRolesUi(){
+  const list = $('server-roles-list');
+  if(!list) return;
+  list.innerHTML = '';
+  serverRoles.sort((a,b)=> (b.position||0) - (a.position||0));
+  serverRoles.forEach(r=>{
+    const item = el('div','srole-item'+(ssActiveRole===r.id?' active':''));
+    item.dataset.rid = r.id;
+    const dot = el('span','role-dot');
+    dot.style.background = r.color || 'var(--text-dim)';
+    item.appendChild(dot);
+    item.appendChild(el('span', null, `@${r.name}`));
+    list.appendChild(item);
+  });
+}
+
+function openRoleEditor(sv, role, body){
+  const area = $('role-editor-area');
+  if(!area) return;
+  const canEdit = sv.owner_id === currentUser.id || hasPermCheck(myPerms[sv.id]||0, PERM_BITS.MANAGE_ROLES);
+
+  area.innerHTML = '';
+  const card = el('div'); card.style.cssText='background:var(--bg-3);border:1px solid var(--border);border-radius:12px;padding:18px;margin-top:14px';
+
+  // Role name
+  const nf = el('div','sfield');
+  nf.appendChild(el('label', null, 'Role name'));
+  const nameInput = el('input'); nameInput.type='text'; nameInput.maxLength=32; nameInput.value=role.name;
+  nf.appendChild(nameInput);
+  card.appendChild(nf);
+
+  // Role color
+  const cf = el('div','sfield');
+  cf.appendChild(el('label', null, 'Role color'));
+  const cRow = el('div'); cRow.style.cssText='display:flex;gap:10px;align-items:center';
+  const colorInput = el('input'); colorInput.type='color'; colorInput.className='role-color-input';
+  colorInput.value = role.color || '#3FE0C5';
+  const colorHex = el('input'); colorHex.type='text'; colorHex.maxLength=7; colorHex.style.cssText='width:80px;padding:6px 8px;background:var(--bg-1);border:1px solid var(--border);border-radius:7px;font-size:13px';
+  colorHex.value = role.color || '#3FE0C5';
+  colorInput.addEventListener('input', ()=>{ colorHex.value = colorInput.value; role.color = colorInput.value; });
+  colorHex.addEventListener('input', ()=>{ if(/^#[0-9a-fA-F]{6}$/.test(colorHex.value)){ colorInput.value = colorHex.value; role.color = colorHex.value; } });
+  const clearColor = el('button','btn ghost','Clear');
+  clearColor.addEventListener('click', ()=>{ role.color = null; colorInput.value = '#3FE0C5'; colorHex.value = ''; });
+  cRow.append(colorInput, colorHex, clearColor);
+  cf.appendChild(cRow);
+  cf.appendChild(el('div','desc','Members with this role will have their name colored in chat and the member list.'));
+  card.appendChild(cf);
+
+  // Hoist (show separately)
+  const hf = el('div','sfield');
+  const hRow = el('div','hoist-toggle');
+  hRow.appendChild(el('span', null, 'Display role members separately in the member list'));
+  const ht = mkToggle(()=>!!role.hoist, v=>{ role.hoist = v ? 1 : 0; });
+  hRow.appendChild(ht);
+  hf.appendChild(hRow);
+  card.appendChild(hf);
+
+  // Permissions grid
+  const permField = el('div','sfield');
+  permField.appendChild(el('label', null, 'Permissions'));
+  const grid = el('div','perm-grid');
+  const permDefs = [
+    [PERM_BITS.ADMINISTRATOR, 'Administrator', 'Full access to all server and channel settings'],
+    [PERM_BITS.MANAGE_SERVER, 'Manage Server', 'Edit server name, icon, and settings'],
+    [PERM_BITS.MANAGE_ROLES, 'Manage Roles', 'Create, edit, and delete roles'],
+    [PERM_BITS.MANAGE_CHANNELS, 'Manage Channels', 'Create, edit, and delete channels'],
+    [PERM_BITS.MANAGE_MESSAGES, 'Manage Messages', 'Delete or pin messages by other members'],
+    [PERM_BITS.KICK_MEMBERS, 'Kick Members', 'Remove members from the server'],
+    [PERM_BITS.BAN_MEMBERS, 'Ban Members', 'Ban members from the server'],
+    [PERM_BITS.MUTE_MEMBERS, 'Mute Members', 'Mute other members in voice channels'],
+    [PERM_BITS.DEAFEN_MEMBERS, 'Deafen Members', 'Deafen other members in voice channels'],
+    [PERM_BITS.MOVE_MEMBERS, 'Move Members', 'Move members between voice channels'],
+    [PERM_BITS.MANAGE_NICKNAMES, 'Manage Nicknames', 'Change nicknames of other members'],
+    [PERM_BITS.CHANGE_NICKNAME, 'Change Nickname', 'Change your own nickname'],
+    [PERM_BITS.READ_MESSAGES, 'Read Messages', 'View text and voice channels'],
+    [PERM_BITS.SEND_MESSAGES, 'Send Messages', 'Send messages in text channels'],
+    [PERM_BITS.CONNECT, 'Connect', 'Join voice channels'],
+    [PERM_BITS.SPEAK, 'Speak', 'Talk in voice channels'],
+    [PERM_BITS.USE_SOUNDBOARD, 'Use Soundboard', 'Play soundboard sounds'],
+    [PERM_BITS.CREATE_INSTANT_INVITE, 'Create Invite', 'Create invite links for the server'],
+  ];
+  permDefs.forEach(([bit, label, desc])=>{
+    const row = el('div','perm-row');
+    const lc = el('div');
+    lc.appendChild(el('span','perm-label', label));
+    lc.appendChild(el('span','perm-desc', desc));
+    row.appendChild(lc);
+    const check = el('button','perm-check'+(hasPermCheck(role.permissions||0, bit)?' on':''));
+    check.innerHTML = '<svg><use href="#i-check"/></svg>';
+    // inject check icon inline
+    const svgNs = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNs,'svg'); svg.style.cssText='width:13px;height:13px';
+    const use = document.createElementNS(svgNs,'use'); use.setAttribute('href','#i-check'); svg.appendChild(use);
+    check.innerHTML = ''; check.appendChild(svg);
+    check.addEventListener('click', ()=>{
+      const on = check.classList.toggle('on');
+      if(bit === PERM_BITS.ADMINISTRATOR && on){
+        // When admin is enabled, enable all perms
+        role.permissions = Object.values(PERM_BITS).reduce((a,b)=>a|b, 0);
+        card.querySelectorAll('.perm-check').forEach(c => c.classList.add('on'));
+      } else if(bit === PERM_BITS.ADMINISTRATOR && !on){
+        role.permissions = 0;
+        card.querySelectorAll('.perm-check').forEach(c => c.classList.remove('on'));
+      } else {
+        if(on) role.permissions = (role.permissions||0) | bit;
+        else role.permissions = (role.permissions||0) & ~bit;
+      }
+    });
+    row.appendChild(check);
+    grid.appendChild(row);
+  });
+  permField.appendChild(grid);
+  card.appendChild(permField);
+
+  // Save + Delete buttons
+  const btnRow = el('div'); btnRow.style.cssText='display:flex;gap:10px;margin-top:16px';
+  const saveBtn = el('button','btn primary','Save');
+  const delBtn = el('button','btn danger','Delete role');
+  btnRow.append(saveBtn, delBtn);
+  if(!canEdit) { saveBtn.disabled = true; saveBtn.style.opacity='.5'; delBtn.disabled = true; delBtn.style.opacity='.5'; }
+  card.appendChild(btnRow);
+
+  saveBtn.addEventListener('click', async ()=>{
+    const payload = {
+      name: nameInput.value.trim() || 'new role',
+      color: role.color || null,
+      hoist: !!role.hoist,
+      permissions: Number(role.permissions||0)
+    };
+    const r = await (await api(`/api/roles/${role.id}`, { method:'PUT', body: JSON.stringify(payload) })).json();
+    if(r.error){ toast(r.error,'err'); return; }
+    toast('Role saved.');
+    Object.assign(role, r);
+    renderRolesUi();
+  });
+
+  delBtn.addEventListener('click', async ()=>{
+    if(!confirm('Delete this role? Members will lose its permissions.')) return;
+    const r = await (await api(`/api/roles/${role.id}`, { method:'DELETE' })).json();
+    if(r.error){ toast(r.error,'err'); return; }
+    serverRoles = serverRoles.filter(x=>x.id!==role.id);
+    ssActiveRole = null;
+    renderRolesUi();
+    openRoleEditor(sv, serverRoles[0] || null, body);
+    if(!serverRoles.length) area.innerHTML = '';
+  });
+
+  area.appendChild(card);
+}
+
+/* ---- Channels tab ---- */
+function paneChannels(sv, body){
+  const pane = el('div','spane');
+  pane.appendChild(el('h3', null, 'Channels'));
+  const canEdit = sv.owner_id === currentUser.id || hasPermCheck(myPerms[sv.id]||0, PERM_BITS.MANAGE_CHANNELS);
+
+  channels.forEach(ch=>{
+    const item = el('div','chperm-item');
+    const icon = el('span','ch-icon');
+    icon.appendChild(svgUse(ch.type==='voice' ? 'i-speaker' : 'i-hash'));
+    item.appendChild(icon);
+    const name = el('span','chperm-name', ch.name);
+    item.appendChild(name);
+    if(canEdit){
+      const act = el('div','chperm-actions');
+      const editPerms = el('button','chperm-btn', 'Permissions');
+      editPerms.addEventListener('click', ()=>openChannelPerms(sv, ch));
+      act.appendChild(editPerms);
+      const delCh = el('button','chperm-btn', 'Delete');
+      delCh.classList.add('deny');
+      delCh.addEventListener('click', async ()=>{
+        if(!confirm(`Delete "${ch.name}"? This cannot be undone.`)) return;
+        const r = await (await api(`/api/servers/${sv.id}/channels/${ch.id}`, { method:'DELETE' })).json();
+        if(r.error){ toast(r.error,'err'); return; }
+        toast('Channel deleted.');
+        if(activeChannel && activeChannel.id===ch.id) openChannel(channels.find(c=>c.id!==ch.id) || channels[0]);
+        await loadChannels(); renderChannels();
+        if($('chperm-ov')) $('chperm-ov').remove();
+      });
+      act.appendChild(delCh);
+      item.appendChild(act);
+    }
+    pane.appendChild(item);
+  });
+
+  if(canEdit){
+    const addCh = el('button','btn','Create channel');
+    addCh.style.marginTop='12px';
+    addCh.addEventListener('click', ()=>{ closeSs(); openCreateChannel(sv); });
+    pane.appendChild(addCh);
+  }
+  return pane;
+}
+
+function openChannelPerms(sv, ch){
+  closeOverlayById('chperm-ov');
+  const ov = el('div','overlay'); ov.id='chperm-ov'; ov.style.alignItems='flex-start';
+  const modal = el('div','modal'); modal.style.cssText='width:500px;max-width:calc(100vw - 28px);padding:22px;margin-top:8vh';
+  modal.appendChild(el('h3', null, `#${ch.name} permissions`));
+
+  // Role overrides
+  const roleList = el('div','srole-list');
+  serverRoles.forEach(r=>{
+    const item = el('div','chperm-item');
+    const dot = el('span','role-dot'); dot.style.background = r.color || 'var(--text-dim)';
+    item.appendChild(dot);
+    item.appendChild(el('span','chperm-name', `@${r.name}`));
+
+    // fetch existing override
+    (async ()=>{
+      let ow = null;
+      try{
+        const ows = await (await api(`/api/channels/${ch.id}/permissions`)).json();
+        ow = (ows||[]).find(o => o.type === 'role' && o.target_id === r.id);
+      }catch{}
+      const act = el('div','chperm-actions');
+
+      const allowBtn = el('button','chperm-btn'+(ow && ow.allow ? ' on' : ''));
+      allowBtn.textContent = 'Allow';
+      allowBtn.addEventListener('click', async ()=>{
+        const isOn = allowBtn.classList.toggle('on');
+        denyBtn.classList.remove('on');
+        const allow = isOn ? -1 : 0; // -1 = all, but we'll do specific
+        // For simplicity toggle basic voice/text perms
+        const basePerms = PERM_BITS.READ_MESSAGES | PERM_BITS.SEND_MESSAGES | PERM_BITS.CONNECT | PERM_BITS.SPEAK;
+        await api(`/api/channels/${ch.id}/permissions`, { method:'PUT', body: JSON.stringify({ type:'role', targetId: r.id, allow: isOn ? basePerms : 0, deny: 0 }) });
+        toast(`Permissions updated for @${r.name}.`);
+      });
+      act.appendChild(allowBtn);
+
+      const denyBtn = el('button','chperm-btn deny'+(ow && ow.deny ? ' on' : ''));
+      denyBtn.textContent = 'Deny';
+      denyBtn.addEventListener('click', async ()=>{
+        const isOn = denyBtn.classList.toggle('on');
+        allowBtn.classList.remove('on');
+        const basePerms = PERM_BITS.READ_MESSAGES | PERM_BITS.SEND_MESSAGES | PERM_BITS.CONNECT | PERM_BITS.SPEAK;
+        await api(`/api/channels/${ch.id}/permissions`, { method:'PUT', body: JSON.stringify({ type:'role', targetId: r.id, allow: 0, deny: isOn ? basePerms : 0 }) });
+        toast(`Permissions updated for @${r.name}.`);
+      });
+      act.appendChild(denyBtn);
+
+      const resetBtn = el('button','chperm-btn', 'Reset');
+      resetBtn.addEventListener('click', async ()=>{
+        await api(`/api/channels/${ch.id}/permissions`, { method:'DELETE', body: JSON.stringify({ type:'role', targetId: r.id }) });
+        allowBtn.classList.remove('on'); denyBtn.classList.remove('on');
+        toast(`Reset for @${r.name}.`);
+      });
+      act.appendChild(resetBtn);
+
+      item.appendChild(act);
+    })();
+
+    roleList.appendChild(item);
+  });
+  if(!serverRoles.length) roleList.appendChild(el('div','member-empty','No roles in this server yet.'));
+  modal.appendChild(roleList);
+  modal.appendChild(el('div','desc','Role overrides: Allow grants access in this channel, Deny removes it. A Deny always overrides an Allow.'));
+  const closeBtn = el('button','btn ghost','Close');
+  closeBtn.style.marginTop='12px';
+  closeBtn.addEventListener('click', ()=>ov.remove());
+  modal.appendChild(closeBtn);
+  ov.appendChild(modal);
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+}
+
+/* ---- Channel DELETE ---- */
+// I need to add a delete channel endpoint. Temporarily use a workaround:
+// actually let me add it properly in server.js later
+
 async function leaveServer(sv){
   try{
     const r = await (await api(`/api/servers/${sv.id}/leave`, { method:'POST', body:'{}' })).json();
@@ -1314,6 +1869,48 @@ async function leaveServer(sv){
     renderRail();
   }catch{ toast('Could not leave the server.','err'); }
 }
+
+function canManageServer(sv){
+  if(!sv || !activeServer) return false;
+  if(sv.owner_id === currentUser.id) return true;
+  const svId = sv.id || sv;
+  try{
+    // try to check against the last known myPerms
+    if(myPerms[svId] && (myPerms[svId] & PERM_BITS.MANAGE_SERVER)) return true;
+  }catch{}
+  return false;
+}
+let myPerms = {}; // serverId -> permission bitfield
+const PERM_BITS = {
+  CREATE_INSTANT_INVITE: 1 << 0,
+  KICK_MEMBERS: 1 << 1,
+  BAN_MEMBERS: 1 << 2,
+  ADMINISTRATOR: 1 << 3,
+  MANAGE_CHANNELS: 1 << 4,
+  MANAGE_SERVER: 1 << 5,
+  MANAGE_ROLES: 1 << 6,
+  MANAGE_MESSAGES: 1 << 7,
+  SEND_MESSAGES: 1 << 8,
+  READ_MESSAGES: 1 << 9,
+  CONNECT: 1 << 10,
+  SPEAK: 1 << 11,
+  MUTE_MEMBERS: 1 << 12,
+  DEAFEN_MEMBERS: 1 << 13,
+  MOVE_MEMBERS: 1 << 14,
+  CHANGE_NICKNAME: 1 << 15,
+  MANAGE_NICKNAMES: 1 << 16,
+  USE_SOUNDBOARD: 1 << 17,
+};
+async function fetchMyPerms(svId, channelId){
+  try{
+    const url = `/api/servers/${svId}/my-permissions${channelId ? '?channelId='+channelId : ''}`;
+    const r = await (await api(url)).json();
+    myPerms[svId] = r.permissions;
+    return r.permissions;
+  }catch{ return 0; }
+}
+function hasPermCheck(perms, bit){ return (perms & bit) === bit; }
+function hasAdminPerms(perms){ return hasPermCheck(perms, PERM_BITS.ADMINISTRATOR); }
 
 function showVoiceStage(){ $('voice-stage').classList.remove('hidden'); $('chat-stage').classList.add('hidden'); }
 function showChatStage(){ $('chat-stage').classList.remove('hidden'); $('voice-stage').classList.add('hidden'); $('chat-input').focus(); }
@@ -2643,7 +3240,9 @@ function buildProfileCard(username, fallbackColor, uid){
   else if(prof.banner) banner.style.background = prof.banner;
   card.appendChild(banner);
   const body = el('div','pc-body');
+  if(prof.popoutColor) body.style.setProperty('background', prof.popoutColor, 'important');
   const av = makeAvatar(username, fallbackColor, 'avatar pc-avatar');
+  if(prof.avatar){ av.style.backgroundImage = `url("${prof.avatar}")`; av.textContent = ''; }
   body.appendChild(av);
   const nm = el('div','pc-name', username);
   applyNameStyle(nm, username);
@@ -2791,6 +3390,16 @@ function memberRow(username, color, sub, uid, isOnline, isBot){
   applyNameStyle(nm, username);
   col.appendChild(nm);
   if(sub) col.appendChild(el('span','mr-sub', sub));
+  // Role badges
+  if(uid && activeServer && memberRoles[uid] && memberRoles[uid].length){
+    const badges = el('div','mr-role-badges');
+    serverRoles.filter(r => memberRoles[uid].includes(r.id) && r.hoist).slice(0, 3).forEach(r => {
+      const b = el('span','mr-role-badge', '&#8203;'+r.name);
+      if(r.color) b.style.color = '#ffffff'; if(r.color) b.style.background = r.color + '33';
+      badges.appendChild(b);
+    });
+    if(badges.children.length) col.appendChild(badges);
+  }
   row.appendChild(col);
   row.addEventListener('click', (e)=>{ e.stopPropagation(); openProfilePopout(row, username, color, uid); });
   if(!isBot) bindUserCtx(row, { id: uid, username, avatar_color: color });
@@ -2939,14 +3548,40 @@ function paneProfile(){
   const pane = el('div','spane');
   pane.appendChild(el('h3', null, 'My profile'));
 
-  const preview = el('div'); preview.style.marginBottom = '22px';
-  const renderPreview = ()=>{ preview.innerHTML=''; preview.appendChild(buildProfileCard(currentUser.username, currentUser.avatar_color, currentUser.id)); };
+  // Working copy — changes apply only on Save
+  const draft = JSON.parse(JSON.stringify(myProfile || {}));
 
-  const save = debounce(()=>saveProfileToServer().then(renderPreview), 250);
-  const saveNow = ()=>{ saveProfileToServer().then(renderPreview); };
-
-  renderPreview();
-  pane.appendChild(preview);
+  const previewContainer = el('div'); previewContainer.style.marginBottom = '22px';
+  const renderPreview = ()=>{
+    previewContainer.innerHTML = '';
+    const prof = Object.assign({}, myProfile, draft);
+    const uid = currentUser.id;
+    const uname = currentUser.username;
+    const color = currentUser.avatar_color;
+    const card = el('div','profile-card');
+    const banner = el('div','pc-banner');
+    if(prof.bannerImage) banner.style.backgroundImage = `url("${prof.bannerImage}")`;
+    else if(prof.banner) banner.style.background = prof.banner;
+    else banner.style.background = 'var(--accent)';
+    card.appendChild(banner);
+    const body = el('div','pc-body');
+    if(prof.popoutColor) body.style.setProperty('background', prof.popoutColor, 'important');
+    const av = makeAvatar(uname, color, 'avatar pc-avatar');
+    if(prof.avatar){ av.style.backgroundImage = `url("${prof.avatar}")`; av.textContent = ''; }
+    body.appendChild(av);
+    const nm = el('div','pc-name', uname);
+    if(prof.nameColor) nm.style.color = prof.nameColor;
+    if(prof.nameFont && NAME_FONTS[prof.nameFont]) nm.style.fontFamily = NAME_FONTS[prof.nameFont];
+    body.appendChild(nm);
+    if(uid) body.appendChild(el('div','pc-uid', 'User ID: ' + uid));
+    const st = el('div','pc-status'); const dot = el('span','dot');
+    st.appendChild(dot); st.appendChild(document.createTextNode(statusLabel(myStatus)));
+    body.appendChild(st);
+    if(prof.about) body.appendChild(el('div','pc-about', prof.about));
+    card.appendChild(body);
+    previewContainer.appendChild(card);
+  };
+  pane.appendChild(previewContainer);
 
   // avatar image
   const avField = el('div','sfield');
@@ -2955,10 +3590,10 @@ function paneProfile(){
   const upBtn = el('button','btn','Upload image (or GIF)');
   upBtn.addEventListener('click', ()=>$('avatar-file').click());
   const clearBtn = el('button','btn ghost','Remove');
-  clearBtn.addEventListener('click', ()=>{ myProfile.avatar=''; saveNow(); });
+  clearBtn.addEventListener('click', ()=>{ draft.avatar=''; renderPreview(); });
   avRow.append(upBtn, clearBtn);
   avField.appendChild(avRow);
-  avField.appendChild(el('div','desc','Saved to your account, so it shows on the website and in the desktop app. Animated GIFs stay animated.'));
+  avField.appendChild(el('div','desc','Animated GIFs stay animated.'));
   pane.appendChild(avField);
   $('avatar-file').onchange = async ()=>{
     const f = $('avatar-file').files[0];
@@ -2971,59 +3606,49 @@ function paneProfile(){
       }else{
         dataUrl = await compressImage(f, 120000);
       }
-      if(dataUrl.length > 150000){ toast('That image is too large \u2014 try a smaller one (GIFs must be under ~100 KB).','err'); return; }
-      myProfile.avatar = dataUrl; saveNow();
+      if(dataUrl.length > 150000){ toast('That image is too large.','err'); return; }
+      draft.avatar = dataUrl; renderPreview();
     }catch{ toast('Could not read that image.','err'); }
   };
 
-  // banner: solid colors, gradients, or an uploaded image/GIF
+  // banner
   const bField = el('div','sfield');
   bField.appendChild(el('label', null, 'Profile banner'));
-
   const markSel = ()=>{
     bField.querySelectorAll('.swatch').forEach(x=>{
-      x.classList.toggle('sel', !myProfile.bannerImage && x.dataset.val === (myProfile.banner||''));
+      x.classList.toggle('sel', !draft.bannerImage && x.dataset.val === (draft.banner||''));
     });
   };
-
   const solids = el('div','swatch-row');
   ['#17B8A6','#3B82F6','#8B5CF6','#EC4899','#F97316','#EAB308','#22C55E','#64748B','#0F172A'].forEach(c=>{
-    const sw = el('button','swatch');
-    sw.style.background = c; sw.dataset.val = c; sw.title = c;
-    sw.addEventListener('click', ()=>{ myProfile.banner = c; delete myProfile.bannerImage; saveNow(); markSel(); });
+    const sw = el('button','swatch'); sw.style.background = c; sw.dataset.val = c; sw.title = c;
+    sw.addEventListener('click', ()=>{ draft.banner = c; delete draft.bannerImage; renderPreview(); markSel(); });
     solids.appendChild(sw);
   });
   bField.appendChild(solids);
-
   const grads = el('div','swatch-row'); grads.style.marginTop = '8px';
   [['#17B8A6','#3B82F6'],['#8B5CF6','#EC4899'],['#F97316','#EAB308'],['#0EA5E9','#22C55E'],
    ['#F43F5E','#8B5CF6'],['#0F172A','#17B8A6'],['#EC4899','#F97316'],['#3B82F6','#8B5CF6']].forEach(([a,b])=>{
     const val = `linear-gradient(135deg,${a},${b})`;
-    const sw = el('button','swatch');
-    sw.style.background = val; sw.dataset.val = val; sw.title = 'Gradient';
-    sw.addEventListener('click', ()=>{ myProfile.banner = val; delete myProfile.bannerImage; saveNow(); markSel(); });
+    const sw = el('button','swatch'); sw.style.background = val; sw.dataset.val = val; sw.title = 'Gradient';
+    sw.addEventListener('click', ()=>{ draft.banner = val; delete draft.bannerImage; renderPreview(); markSel(); });
     grads.appendChild(sw);
   });
   bField.appendChild(grads);
-
-  // custom two-color gradient
   const gr = el('div','grad-row');
   const c1 = el('input'); c1.type='color'; c1.value='#17B8A6';
   const c2 = el('input'); c2.type='color'; c2.value='#8B5CF6';
   const apply = el('button','btn ghost','Use custom gradient');
-  apply.addEventListener('click', ()=>{ myProfile.banner = `linear-gradient(135deg,${c1.value},${c2.value})`; delete myProfile.bannerImage; saveNow(); markSel(); });
+  apply.addEventListener('click', ()=>{ draft.banner = `linear-gradient(135deg,${c1.value},${c2.value})`; delete draft.bannerImage; renderPreview(); markSel(); });
   gr.append(c1, c2, apply);
   bField.appendChild(gr);
-
-  // banner image / GIF
   const bImgRow = el('div'); bImgRow.style.cssText='display:flex;gap:8px;margin-top:10px';
   const bUp = el('button','btn','Upload banner image / GIF');
   bUp.addEventListener('click', ()=>$('banner-file').click());
   const bClear = el('button','btn ghost','Remove image');
-  bClear.addEventListener('click', ()=>{ delete myProfile.bannerImage; saveNow(); markSel(); });
+  bClear.addEventListener('click', ()=>{ delete draft.bannerImage; renderPreview(); markSel(); });
   bImgRow.append(bUp, bClear);
   bField.appendChild(bImgRow);
-  bField.appendChild(el('div','desc','Pick a color, a gradient (very Nitro), or upload a picture/GIF that fits the top of your profile card.'));
   pane.appendChild(bField);
   markSel();
   $('banner-file').onchange = async ()=>{
@@ -3037,20 +3662,38 @@ function paneProfile(){
       }else{
         dataUrl = await compressBanner(f, 380000);
       }
-      if(!dataUrl || dataUrl.length > 400000){ toast('That banner is too large \u2014 use a smaller image (GIFs under ~280 KB).','err'); return; }
-      myProfile.bannerImage = dataUrl; saveNow(); markSel();
+      if(!dataUrl || dataUrl.length > 400000){ toast('That banner is too large.','err'); return; }
+      draft.bannerImage = dataUrl; renderPreview(); markSel();
     }catch{ toast('Could not read that image.','err'); }
   };
+
+  // Profile card background color (color wheel)
+  const pField = el('div','sfield');
+  pField.appendChild(el('label', null, 'Profile card background'));
+  const pRow = el('div'); pRow.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+  const pColorWheel = el('input'); pColorWheel.type='color'; pColorWheel.className='role-color-input';
+  pColorWheel.value = draft.popoutColor || '#16202F';
+  const pColorHex = el('input'); pColorHex.type='text'; pColorHex.maxLength=7;
+  pColorHex.style.cssText='width:90px;padding:6px 8px;background:var(--bg-1);border:1px solid var(--border);border-radius:7px;font-size:13px';
+  pColorHex.value = draft.popoutColor || '';
+  pColorWheel.addEventListener('input', ()=>{ draft.popoutColor = pColorWheel.value; pColorHex.value = pColorWheel.value; renderPreview(); });
+  pColorHex.addEventListener('input', ()=>{ if(/^#[0-9a-fA-F]{6}$/.test(pColorHex.value)){ draft.popoutColor = pColorHex.value; pColorWheel.value = pColorHex.value; renderPreview(); } });
+  const pClear = el('button','btn ghost','Default');
+  pClear.addEventListener('click', ()=>{ delete draft.popoutColor; pColorWheel.value = '#16202F'; pColorHex.value = ''; renderPreview(); });
+  pRow.append(pColorWheel, pColorHex, pClear);
+  pField.appendChild(pRow);
+  pField.appendChild(el('div','desc','Change the background color of your profile popout card. Pick any color.'));
+  pane.appendChild(pField);
 
   // name color + font
   const nField = el('div','sfield');
   nField.appendChild(el('label', null, 'Name color'));
   const nwr = el('div','swatch-row');
   ['','#3FE0C5','#79C0FF','#D2A8FF','#FF7B72','#FFA657','#7EE787','#F778BA'].forEach(c=>{
-    const sw = el('button','swatch'+((myProfile.nameColor||'')===c?' sel':''));
+    const sw = el('button','swatch'+((draft.nameColor||'')===c?' sel':''));
     sw.style.background = c || 'linear-gradient(135deg,var(--text) 50%,var(--bg-4) 50%)';
     sw.title = c || 'Default';
-    sw.addEventListener('click', ()=>{ myProfile.nameColor = c; saveNow(); nwr.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel')); sw.classList.add('sel'); });
+    sw.addEventListener('click', ()=>{ draft.nameColor = c; renderPreview(); nwr.querySelectorAll('.swatch').forEach(x=>x.classList.remove('sel')); sw.classList.add('sel'); });
     nwr.appendChild(sw);
   });
   nField.appendChild(nwr);
@@ -3060,19 +3703,18 @@ function paneProfile(){
   fField.appendChild(el('label', null, 'Name font'));
   const fSel = el('select');
   [['','Default'],['display','Display'],['serif','Serif'],['mono','Monospace'],['cursive','Handwritten']].forEach(([v,l])=>{
-    const o = el('option', null, l); o.value = v; if((myProfile.nameFont||'')===v) o.selected = true; fSel.appendChild(o);
+    const o = el('option', null, l); o.value = v; if((draft.nameFont||'')===v) o.selected = true; fSel.appendChild(o);
   });
-  fSel.addEventListener('change', ()=>{ myProfile.nameFont = fSel.value; saveNow(); });
+  fSel.addEventListener('change', ()=>{ draft.nameFont = fSel.value; renderPreview(); });
   fField.appendChild(fSel);
   pane.appendChild(fField);
 
   // about
   const aField = el('div','sfield');
   aField.appendChild(el('label', null, 'About me'));
-  const ta = el('textarea'); ta.maxLength = 300; ta.value = myProfile.about || '';
-  ta.addEventListener('input', ()=>{ myProfile.about = ta.value; save(); });
+  const ta = el('textarea'); ta.maxLength = 300; ta.value = draft.about || '';
+  ta.addEventListener('input', ()=>{ draft.about = ta.value; renderPreview(); });
   aField.appendChild(ta);
-  aField.appendChild(el('div','desc','Everything here is saved to your account on the server, so it follows you between the website and the app.'));
   pane.appendChild(aField);
 
   // user id
@@ -3085,6 +3727,26 @@ function paneProfile(){
   idRow.append(idVal, idBtn);
   idField.appendChild(idRow);
   pane.appendChild(idField);
+
+  // Save / Cancel
+  const btnRow = el('div'); btnRow.style.cssText='display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-soft)';
+  const saveBtn = el('button','btn primary','Save changes');
+  const cancelBtn = el('button','btn ghost','Cancel');
+  btnRow.append(saveBtn, cancelBtn);
+  saveBtn.addEventListener('click', async ()=>{
+    Object.assign(myProfile, draft);
+    await saveProfileToServer();
+    renderUserPanel();
+    toast('Profile saved!');
+  });
+  cancelBtn.addEventListener('click', ()=>{
+    Object.assign(draft, JSON.parse(JSON.stringify(myProfile)));
+    renderPreview();
+    toast('Changes discarded.');
+  });
+  pane.appendChild(btnRow);
+
+  renderPreview();
   return pane;
 }
 
