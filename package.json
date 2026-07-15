@@ -4,7 +4,8 @@
   "description": "Voice chat with servers, DMs, calls, music bot, screen sharing",
   "main": "electron/main.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "npm rebuild better-sqlite3 2>nul && node server.js",
+    "postinstall": "npm rebuild better-sqlite3 2>nul || true",
     "electron:dev": "NODE_ENV=development electron .",
     "electron:build": "electron-builder"
   },
