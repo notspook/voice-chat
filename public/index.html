@@ -3229,7 +3229,7 @@ function applyNameStyle(elm, username){
 
 function statusLabel(s){ return s==='idle' ? 'Idle' : s==='dnd' ? 'Do Not Disturb' : 'Online'; }
 
-function buildProfileCard(username, fallbackColor, uid){
+function buildProfileCard(username, fallbackColor, uid, serverContext){
   const prof = profiles[username] || {};
   uid = uid || nameToId[username];
   const isSelf = username === currentUser.username;
@@ -3255,6 +3255,22 @@ function buildProfileCard(username, fallbackColor, uid){
   st.appendChild(dot); st.appendChild(document.createTextNode(status==='offline' ? 'Offline' : statusLabel(status)));
   body.appendChild(st);
   if(prof.about) body.appendChild(el('div','pc-about', prof.about));
+
+  // Role badges (display + assign for server members)
+  if(uid && serverContext && serverRoles.length){
+    const userRoleIds = memberRoles[uid] || [];
+    const userRoles = serverRoles.filter(r => userRoleIds.includes(r.id));
+    if(userRoles.length){
+      const rb = el('div','mr-role-badges'); rb.style.marginTop = '8px';
+      userRoles.forEach(r => {
+        const b = el('span','mr-role-badge', '&#8203;'+r.name);
+        if(r.color){ b.style.background = r.color + '33'; b.style.color = r.color; }
+        rb.appendChild(b);
+      });
+      body.appendChild(rb);
+    }
+  }
+
   const actions = el('div','pc-actions');
   if(uid && !isSelf && username !== 'Ripple' && username !== 'Ripple Music'){
     const msg = el('button','btn','Message');
@@ -3267,13 +3283,49 @@ function buildProfileCard(username, fallbackColor, uid){
     actions.appendChild(cp);
   }
   if(actions.children.length) body.appendChild(actions);
+
+  // Role assignment (for users with Manage Roles in the active server)
+  if(uid && !isSelf && activeServer && serverRoles.length){
+    const canAssign = activeServer.owner_id === currentUser.id || hasPermCheck(myPerms[activeServer.id]||0, PERM_BITS.MANAGE_ROLES);
+    if(canAssign){
+      const rField = el('div','sfield'); rField.style.marginTop = '12px';
+      rField.appendChild(el('label', null, 'Roles'));
+      const rList = el('div'); rList.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
+      serverRoles.forEach(r => {
+        const userHas = (memberRoles[uid] || []).includes(r.id);
+        const btn = el('button', 'btn' + (userHas ? ' primary' : ' ghost'));
+        btn.style.cssText = 'font-size:12px;padding:4px 10px;border-radius:6px';
+        if(r.color) btn.style.borderColor = r.color;
+        btn.textContent = (userHas ? '\u2713 ' : '') + r.name;
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          const current = memberRoles[uid] || [];
+          let updated;
+          if(current.includes(r.id)) updated = current.filter(x => x !== r.id);
+          else updated = [...current, r.id];
+          try{
+            await api(`/api/servers/${activeServer.id}/members/${uid}/roles`, { method:'PUT', body: JSON.stringify({ roles: updated }) });
+            memberRoles[uid] = updated;
+            renderMembers();
+            closeProfilePopout();
+          }catch{ toast('Failed to update roles.','err'); }
+          btn.disabled = false;
+        });
+        rList.appendChild(btn);
+      });
+      rField.appendChild(rList);
+      body.appendChild(rField);
+    }
+  }
+
   card.appendChild(body);
   return card;
 }
 function openProfilePopout(anchor, username, color, uid){
   closeProfilePopout(); closePopovers();
   const pop = el('div'); pop.id = 'profile-popout';
-  pop.appendChild(buildProfileCard(username, color, uid));
+  const serverCtx = view === 'server' && activeServer ? activeServer.id : null;
+  pop.appendChild(buildProfileCard(username, color, uid, serverCtx));
   document.body.appendChild(pop);
   const r = anchor.getBoundingClientRect();
   pop.style.left = clamp(r.right + 10, 8, window.innerWidth - pop.offsetWidth - 8) + 'px';

@@ -1,0 +1,1241 @@
+================================================================================
+ FULL PROJECT SOURCE CODE — Browser Voice Chat App ("Ripple")
+================================================================================
+ This file contains all source files for the project.
+ File structure:
+   /project
+     package.json
+     server.js
+     public/index.html
+     public/style.css
+     public/app.js
+
+ The app is deployed on Render at https://voice-chat-db0a.onrender.com
+ It uses SQLite (better-sqlite3) for persistence, Express + Socket.IO for
+ signaling, and WebRTC for peer-to-peer audio.
+================================================================================
+
+============================================================
+ FILE: package.json
+============================================================
+
+{
+  "name": "voice-chat",
+  "version": "1.0.0",
+  "description": "Browser-based voice chat with noise suppression and screen sharing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}
+
+============================================================
+ FILE: server.js
+============================================================
+
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+const crypto = require('crypto');
+const Database = require('better-sqlite3');
+
+const db = new Database('data.db');
+db.pragma('journal_mode=WAL');
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    avatar_color TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS channels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('voice','text')),
+    position INTEGER DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (channel_id) REFERENCES channels(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+`);
+
+const existingChannels = db.prepare('SELECT COUNT(*) as count FROM channels').get();
+if (existingChannels.count === 0) {
+  const insert = db.prepare('INSERT INTO channels (name, type, position) VALUES (?, ?, ?)');
+  insert.run('General', 'voice', 0);
+  insert.run('Music', 'voice', 1);
+  insert.run('general-chat', 'text', 2);
+}
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  const [salt, hash] = stored.split(':');
+  const verify = crypto.scryptSync(password, salt, 64).toString('hex');
+  return hash === verify;
+}
+
+function generateToken() {
+  return crypto.randomBytes(48).toString('hex');
+}
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.post('/api/register', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || username.length < 2) return res.status(400).json({ error: 'Username too short' });
+  if (!password || password.length < 4) return res.status(400).json({ error: 'Password too short' });
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  if (existing) return res.status(409).json({ error: 'Username taken' });
+  const colors = ['#f97583','#79c0ff','#56d364','#d2a8ff','#ffa657','#7ee787','#a5d6ff','#ff7b72','#bbf0d4','#f0883e'];
+  const color = colors[Math.abs(crypto.randomBytes(1)[0]) % colors.length];
+  db.prepare('INSERT INTO users (username, password_hash, avatar_color) VALUES (?, ?, ?)').run(username, hashPassword(password), color);
+  const user = db.prepare('SELECT id, username, avatar_color FROM users WHERE username = ?').get(username);
+  const token = generateToken();
+  db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
+  res.json({ token, user });
+});
+
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  if (!user || !verifyPassword(password, user.password_hash)) {
+    return res.status(401).json({ error: 'Invalid username or password' });
+  }
+  const token = generateToken();
+  db.prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, user.id);
+  res.json({ token, user: { id: user.id, username: user.username, avatar_color: user.avatar_color } });
+});
+
+app.get('/api/me', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  const session = db.prepare('SELECT s.token, u.id, u.username, u.avatar_color FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?').get(auth);
+  if (!session) return res.status(401).json({ error: 'Invalid token' });
+  res.json({ user: { id: session.id, username: session.username, avatar_color: session.avatar_color } });
+});
+
+app.get('/api/channels', (req, res) => {
+  const channels = db.prepare('SELECT id, name, type, position FROM channels ORDER BY position').all();
+  res.json(channels);
+});
+
+app.get('/api/channels/:id/messages', (req, res) => {
+  const msgs = db.prepare('SELECT m.id, m.content, m.created_at, u.username, u.avatar_color FROM messages m JOIN users u ON u.id = m.user_id WHERE m.channel_id = ? ORDER BY m.created_at ASC LIMIT 100').all(req.params.id);
+  res.json(msgs);
+});
+
+app.post('/api/channels/:id/messages', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  const session = db.prepare('SELECT user_id FROM sessions WHERE token = ?').get(auth);
+  if (!session) return res.status(401).json({ error: 'Invalid token' });
+  const { content } = req.body;
+  if (!content || !content.trim()) return res.status(400).json({ error: 'Empty message' });
+  const result = db.prepare('INSERT INTO messages (channel_id, user_id, content) VALUES (?, ?, ?)').run(req.params.id, session.user_id, content.trim());
+  const msg = db.prepare('SELECT m.id, m.content, m.created_at, u.username, u.avatar_color FROM messages m JOIN users u ON u.id = m.user_id WHERE m.id = ?').get(result.lastInsertRowid);
+  io.to(`chat:${req.params.id}`).emit('new-message', msg);
+  res.json(msg);
+});
+
+const voiceUsers = {};
+const userSessions = {};
+
+io.on('connection', (socket) => {
+  socket.on('auth', (token) => {
+    const session = db.prepare('SELECT u.id, u.username, u.avatar_color FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?').get(token);
+    if (session) {
+      socket.data.user = { id: session.id, username: session.username, avatar_color: session.avatar_color };
+      userSessions[socket.id] = session.id;
+      socket.emit('authed', session);
+    } else {
+      socket.emit('authed', null);
+    }
+  });
+
+  socket.on('channels:join', (channelId) => {
+    if (!socket.data.user) return;
+    if (socket.data.channel) {
+      socket.to(`voice:${socket.data.channel}`).emit('voice-user-left', { id: socket.id });
+      socket.leave(`voice:${socket.data.channel}`);
+    }
+    socket.data.channel = channelId;
+    socket.join(`voice:${channelId}`);
+    if (!voiceUsers[channelId]) voiceUsers[channelId] = [];
+    voiceUsers[channelId] = voiceUsers[channelId].filter(u => u.id !== socket.id);
+    voiceUsers[channelId].push({ id: socket.id, user: socket.data.user });
+    socket.to(`voice:${channelId}`).emit('voice-user-joined', { id: socket.id, user: socket.data.user });
+    socket.emit('voice-users', voiceUsers[channelId]);
+  });
+
+  socket.on('voice-offer', ({ to, offer }) => {
+    io.to(to).emit('voice-offer', { from: socket.id, offer, user: socket.data.user });
+  });
+  socket.on('voice-answer', ({ to, answer }) => {
+    io.to(to).emit('voice-answer', { from: socket.id, answer });
+  });
+  socket.on('voice-ice', ({ to, candidate }) => {
+    io.to(to).emit('voice-ice', { from: socket.id, candidate });
+  });
+
+  socket.on('chat:join', (channelId) => {
+    socket.join(`chat:${channelId}`);
+  });
+
+  socket.on('typing', ({ channelId }) => {
+    socket.to(`chat:${channelId}`).emit('typing', { userId: socket.data.user?.id, username: socket.data.user?.username });
+  });
+
+  socket.on('disconnect', () => {
+    const channelId = socket.data.channel;
+    if (channelId && voiceUsers[channelId]) {
+      voiceUsers[channelId] = voiceUsers[channelId].filter(u => u.id !== socket.id);
+      socket.to(`voice:${channelId}`).emit('voice-user-left', { id: socket.id });
+      if (voiceUsers[channelId].length === 0) delete voiceUsers[channelId];
+    }
+    delete userSessions[socket.id];
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+
+============================================================
+ FILE: public/index.html
+============================================================
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ripple</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="auth-screen">
+    <div class="auth-box">
+      <h1>Ripple</h1>
+      <p class="auth-sub">Talk. Text. Together.</p>
+      <div id="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="register">Register</button>
+      </div>
+      <form id="auth-form">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="auth-username" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="auth-password" autocomplete="current-password" required>
+        </div>
+        <div id="auth-error" class="auth-error"></div>
+        <button type="submit" id="auth-btn">Login</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="app" style="display:none">
+    <div id="sidebar">
+      <div id="user-section">
+        <div id="user-avatar"></div>
+        <div id="user-info">
+          <span id="user-name"></span>
+          <span id="user-status">Online</span>
+        </div>
+        <button id="logout-btn" title="Logout">✕</button>
+      </div>
+      <div id="channel-list">
+        <div class="channel-group">
+          <div class="channel-group-header">Voice Channels</div>
+          <div id="voice-channels"></div>
+        </div>
+        <div class="channel-group">
+          <div class="channel-group-header">Text Channels</div>
+          <div id="text-channels"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="main">
+      <div id="voice-view" style="display:none">
+        <div id="voice-header">
+          <span id="voice-channel-name"></span>
+          <span id="voice-users-count"></span>
+        </div>
+        <div id="voice-users-list">
+          <div id="voice-peer-grid"></div>
+          <div id="voice-status">
+            <div id="connection-indicator"></div>
+            <span id="connection-status-text">Connected</span>
+          </div>
+        </div>
+        <div id="voice-controls">
+          <div id="vc-left">
+            <button id="mute-btn" class="vc-btn" title="Toggle Mute">
+              <span class="vc-icon">🎤</span>
+              <span class="vc-label">Mute</span>
+            </button>
+            <button id="deafen-btn" class="vc-btn" title="Toggle Deafen">
+              <span class="vc-icon">🔇</span>
+              <span class="vc-label">Deafen</span>
+            </button>
+          </div>
+          <div id="vc-center">
+            <button id="screen-share-btn" class="vc-btn" title="Share Screen">
+              <span class="vc-icon">🖥️</span>
+              <span class="vc-label">Share</span>
+            </button>
+            <button id="ptt-btn" class="vc-btn active-soft" title="Push to Talk (Hold Space)">
+              <span class="vc-icon">🎙️</span>
+              <span class="vc-label">PTT</span>
+            </button>
+          </div>
+          <div id="vc-right">
+            <div class="device-group" title="Microphone">
+              <label>Mic</label>
+              <select id="mic-select"></select>
+            </div>
+            <div class="device-group" title="Speaker">
+              <label>Spk</label>
+              <select id="speaker-select"></select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="local-screen-preview" style="display:none">
+        <video id="local-screen-video" autoplay playsinline muted></video>
+        <button id="stop-screen-btn">Stop</button>
+      </div>
+
+      <div id="chat-view" style="display:none">
+        <div id="chat-header">
+          <span id="chat-channel-name"></span>
+        </div>
+        <div id="chat-messages"></div>
+        <div id="chat-typing"></div>
+        <div id="chat-input-area">
+          <textarea id="chat-input" placeholder="Message..." rows="1"></textarea>
+          <button id="chat-send-btn">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
+============================================================
+ FILE: public/style.css
+============================================================
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: #0d1117;
+  color: #e6edf3;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+}
+button { cursor: pointer; border: none; font-family: inherit; }
+input, textarea, select { font-family: inherit; outline: none; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+/* Auth */
+#auth-screen {
+  width: 100%; height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 20% 80%, #0d1117 0%, #010409 100%);
+}
+.auth-box {
+  background: #161b22; border: 1px solid #30363d; border-radius: 16px;
+  padding: 40px; width: 380px; text-align: center;
+}
+.auth-box h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.auth-sub { color: #8b949e; font-size: 14px; margin-bottom: 28px; }
+#auth-tabs { display: flex; gap: 0; margin-bottom: 24px; background: #0d1117; border-radius: 8px; padding: 3px; }
+.auth-tab {
+  flex: 1; padding: 8px; border-radius: 6px; font-size: 14px; font-weight: 500;
+  background: transparent; color: #8b949e; transition: all 0.2s;
+}
+.auth-tab.active { background: #238636; color: #fff; }
+.auth-tab:hover:not(.active) { color: #e6edf3; }
+.form-group { text-align: left; margin-bottom: 16px; }
+.form-group label { display: block; font-size: 12px; color: #8b949e; margin-bottom: 4px; font-weight: 500; }
+.form-group input {
+  width: 100%; padding: 10px 12px; background: #0d1117; border: 1px solid #30363d;
+  border-radius: 8px; color: #e6edf3; font-size: 14px; transition: border-color 0.2s;
+}
+.form-group input:focus { border-color: #58a6ff; }
+.auth-error { color: #f85149; font-size: 13px; margin-bottom: 12px; min-height: 20px; }
+#auth-btn { width: 100%; padding: 10px; background: #238636; color: #fff; border-radius: 8px; font-size: 15px; font-weight: 600; }
+#auth-btn:hover { background: #2ea043; }
+
+/* App Layout */
+#app { display: flex; width: 100%; height: 100vh; }
+#sidebar {
+  width: 260px; background: #161b22; border-right: 1px solid #30363d;
+  display: flex; flex-direction: column; flex-shrink: 0;
+}
+#user-section {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  border-bottom: 1px solid #30363d; min-height: 56px;
+}
+#user-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 15px; color: #fff; user-select: none;
+}
+#user-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#user-name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#user-status { font-size: 11px; color: #3fb950; }
+#logout-btn {
+  background: none; color: #8b949e; font-size: 16px; padding: 4px 8px; border-radius: 4px;
+  transition: all 0.15s; line-height: 1;
+}
+#logout-btn:hover { background: #da3633; color: #fff; }
+
+/* Channel List */
+#channel-list { flex: 1; overflow-y: auto; padding: 12px 8px; }
+.channel-group { margin-bottom: 20px; }
+.channel-group-header {
+  font-size: 11px; font-weight: 600; color: #8b949e; text-transform: uppercase;
+  letter-spacing: 0.5px; padding: 0 8px; margin-bottom: 4px;
+}
+.channel-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px; margin: 2px 0;
+  border-radius: 6px; cursor: pointer; font-size: 14px; color: #8b949e;
+  transition: all 0.15s; user-select: none;
+}
+.channel-item:hover { background: #1c2128; color: #e6edf3; }
+.channel-item.active { background: #1c2128; color: #e6edf3; }
+.channel-item .ch-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+.channel-item .ch-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+
+/* Main */
+#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* Voice View */
+#voice-view { flex: 1; display: flex; flex-direction: column; }
+#voice-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 20px; border-bottom: 1px solid #30363d; min-height: 48px;
+}
+#voice-channel-name { font-size: 16px; font-weight: 600; }
+#voice-users-count { font-size: 13px; color: #8b949e; }
+#voice-users-list {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 16px; padding: 24px; overflow-y: auto;
+}
+#voice-peer-grid {
+  display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; align-items: center;
+}
+.voice-user-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 16px 20px; background: #161b22; border-radius: 12px;
+  border: 2px solid #30363d; transition: all 0.15s; min-width: 100px;
+}
+.voice-user-tile.talking {
+  border-color: #3fb950; box-shadow: 0 0 16px rgba(63,185,80,0.25);
+}
+.voice-user-tile.muted .vu-avatar { opacity: 0.5; }
+.vu-avatar {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 20px; color: #fff; user-select: none; position: relative;
+}
+.vu-name { font-size: 13px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vu-indicators { display: flex; gap: 6px; align-items: center; min-height: 16px; }
+.vu-dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; opacity: 0; transition: opacity 0.15s; }
+.vu-dot.active { opacity: 1; }
+.vu-muted { font-size: 10px; color: #f85149; font-weight: 600; display: none; }
+.voice-user-tile.muted .vu-muted { display: block; }
+
+#voice-status {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8b949e;
+  background: #161b22; padding: 8px 16px; border-radius: 8px;
+}
+#connection-indicator { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; }
+#connection-indicator.warning { background: #d29922; }
+#connection-indicator.error { background: #f85149; }
+
+/* Voice Controls */
+#voice-controls {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; background: #161b22; border-top: 1px solid #30363d; gap: 12px;
+}
+#vc-left, #vc-center, #vc-right { display: flex; align-items: center; gap: 6px; }
+.vc-btn {
+  display: flex; align-items: center; gap: 4px; padding: 6px 12px;
+  background: #21262d; color: #e6edf3; border-radius: 6px; font-size: 12px;
+  transition: all 0.15s; white-space: nowrap;
+}
+.vc-btn:hover { background: #30363d; }
+.vc-btn.active { background: #da3633; }
+.vc-btn.active:hover { background: #f85149; }
+.vc-btn.active-soft { background: #1c2128; border: 1px solid #30363d; }
+.vc-btn.active-soft.active { background: #238636; border-color: #238636; }
+.vc-icon { font-size: 16px; }
+.vc-label { font-size: 12px; }
+#vc-right .device-group { display: flex; align-items: center; gap: 4px; }
+#vc-right .device-group label { font-size: 11px; color: #8b949e; }
+#vc-right .device-group select {
+  padding: 4px 6px; background: #0d1117; border: 1px solid #30363d;
+  border-radius: 4px; color: #e6edf3; font-size: 12px; max-width: 140px;
+}
+
+#local-screen-preview {
+  background: #0d1117; border-bottom: 1px solid #30363d;
+  padding: 8px 16px; display: flex; align-items: center; gap: 12px;
+}
+#local-screen-preview video { width: 200px; border-radius: 4px; border: 1px solid #30363d; }
+#stop-screen-btn { padding: 4px 12px; background: #da3633; color: #fff; border-radius: 4px; font-size: 12px; }
+
+/* Chat View */
+#chat-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+#chat-header {
+  padding: 12px 20px; border-bottom: 1px solid #30363d; font-size: 16px; font-weight: 600; min-height: 48px;
+}
+#chat-messages {
+  flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 2px;
+  min-height: 0;
+}
+.chat-msg { display: flex; gap: 10px; padding: 4px 0; }
+.chat-msg-avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; color: #fff; margin-top: 2px;
+}
+.chat-msg-body { min-width: 0; }
+.chat-msg-header { display: flex; align-items: baseline; gap: 8px; }
+.chat-msg-user { font-size: 14px; font-weight: 600; }
+.chat-msg-time { font-size: 11px; color: #8b949e; }
+.chat-msg-content { font-size: 14px; word-wrap: break-word; line-height: 1.4; }
+#chat-typing { font-size: 12px; color: #8b949e; padding: 2px 20px; min-height: 20px; font-style: italic; }
+#chat-input-area {
+  display: flex; gap: 8px; padding: 12px 20px; border-top: 1px solid #30363d;
+  background: #161b22;
+}
+#chat-input {
+  flex: 1; padding: 10px 12px; background: #0d1117; border: 1px solid #30363d;
+  border-radius: 8px; color: #e6edf3; font-size: 14px; resize: none; line-height: 1.4;
+  max-height: 120px; min-height: 40px;
+}
+#chat-input:focus { border-color: #58a6ff; }
+#chat-send-btn {
+  padding: 10px 20px; background: #238636; color: #fff; border-radius: 8px;
+  font-size: 14px; font-weight: 600; align-self: flex-end;
+}
+#chat-send-btn:hover { background: #2ea043; }
+
+============================================================
+ FILE: public/app.js
+============================================================
+
+const API = '';
+let socket = null;
+let token = localStorage.getItem('token');
+let currentUser = null;
+let channels = [];
+let currentChannel = null;
+let currentView = null;
+let localStream = null;
+let screenStream = null;
+let isMuted = false;
+let isDeafened = false;
+let pttMode = false;
+let pttActive = false;
+let isScreenSharing = false;
+let peerConnections = {};
+let peerUsers = {};
+let localAnalyserInterval = null;
+let remoteAnalysers = {};
+let remoteAnalyserIntervals = {};
+let connectedPeers = new Set();
+let typingTimeout = null;
+
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
+];
+
+/* ====== AUTH ====== */
+const authScreen = document.getElementById('auth-screen');
+const appEl = document.getElementById('app');
+const authForm = document.getElementById('auth-form');
+const authUsername = document.getElementById('auth-username');
+const authPassword = document.getElementById('auth-password');
+const authBtn = document.getElementById('auth-btn');
+const authError = document.getElementById('auth-error');
+const authTabs = document.querySelectorAll('.auth-tab');
+let authMode = 'login';
+
+authTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    authTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    authMode = tab.dataset.tab;
+    authBtn.textContent = authMode === 'login' ? 'Login' : 'Register';
+    authError.textContent = '';
+  });
+});
+
+authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = authUsername.value.trim();
+  const password = authPassword.value;
+  if (!username || !password) return;
+  authBtn.disabled = true;
+  authBtn.textContent = '...';
+  authError.textContent = '';
+  try {
+    const res = await fetch(`${API}/api/${authMode}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) { authError.textContent = data.error; return; }
+    token = data.token;
+    localStorage.setItem('token', token);
+    currentUser = data.user;
+    initApp();
+  } catch { authError.textContent = 'Connection error'; }
+  finally { authBtn.disabled = false; authBtn.textContent = authMode === 'login' ? 'Login' : 'Register'; }
+});
+
+async function checkAuth() {
+  if (!token) return false;
+  try {
+    const res = await fetch(`${API}/api/me`, { headers: { 'Authorization': token } });
+    if (!res.ok) { localStorage.removeItem('token'); token = null; return false; }
+    const data = await res.json();
+    currentUser = data.user;
+    return true;
+  } catch { return false; }
+}
+
+/* ====== INIT ====== */
+async function initApp() {
+  authScreen.style.display = 'none';
+  appEl.style.display = 'flex';
+  renderUserInfo();
+
+  const chRes = await fetch(`${API}/api/channels`);
+  channels = await chRes.json();
+
+  socket = io();
+  socket.emit('auth', token);
+  socket.on('authed', (user) => {
+    if (!user) { logout(); return; }
+    setupSocket();
+    renderChannels();
+    if (channels.length > 0) {
+      const firstVoice = channels.find(c => c.type === 'voice');
+      const firstText = channels.find(c => c.type === 'text');
+      switchView(firstVoice || firstText);
+    }
+  });
+}
+
+function logout() {
+  if (socket) socket.disconnect();
+  localStorage.removeItem('token');
+  cleanupVoice();
+  location.reload();
+}
+
+document.getElementById('logout-btn').addEventListener('click', logout);
+
+/* ====== USER INFO ====== */
+function renderUserInfo() {
+  const avatar = document.getElementById('user-avatar');
+  avatar.style.background = currentUser.avatar_color || '#58a6ff';
+  avatar.textContent = getInitials(currentUser.username);
+  document.getElementById('user-name').textContent = currentUser.username;
+}
+
+function getInitials(name) {
+  const p = name.trim().split(/\s+/);
+  return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
+}
+
+/* ====== CHANNELS ====== */
+function renderChannels() {
+  const voiceContainer = document.getElementById('voice-channels');
+  const textContainer = document.getElementById('text-channels');
+  voiceContainer.innerHTML = '';
+  textContainer.innerHTML = '';
+  channels.forEach(ch => {
+    const el = document.createElement('div');
+    el.className = 'channel-item';
+    el.dataset.id = ch.id;
+    el.dataset.type = ch.type;
+    el.innerHTML = `<span class="ch-icon">${ch.type === 'voice' ? '🔊' : '💬'}</span><span class="ch-name">${ch.name}</span>`;
+    el.addEventListener('click', () => switchView(ch));
+    (ch.type === 'voice' ? voiceContainer : textContainer).appendChild(el);
+  });
+}
+
+function switchView(channel) {
+  if (currentChannel && currentChannel.id === channel.id) return;
+  currentChannel = channel;
+  document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+  const item = document.querySelector(`.channel-item[data-id="${channel.id}"]`);
+  if (item) item.classList.add('active');
+
+  if (channel.type === 'voice') {
+    switchToVoice(channel);
+  } else {
+    switchToChat(channel);
+  }
+}
+
+/* ====== VOICE ====== */
+let currentVoiceChannel = null;
+
+async function switchToVoice(channel) {
+  document.getElementById('chat-view').style.display = 'none';
+  document.getElementById('voice-view').style.display = 'flex';
+  currentView = 'voice';
+  document.getElementById('voice-channel-name').textContent = channel.name;
+
+  if (currentVoiceChannel && currentVoiceChannel.id !== channel.id) {
+    cleanupVoice();
+  }
+  currentVoiceChannel = channel;
+
+  if (!localStream) {
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true, sampleRate: 48000, channelCount: 2 },
+        video: false
+      });
+      enumerateDevices();
+      startLocalTalkingDetection();
+    } catch { return; }
+  }
+
+  socket.emit('channels:join', channel.id);
+}
+
+function cleanupVoice() {
+  Object.values(peerConnections).forEach(pc => pc.close());
+  peerConnections = {};
+  peerUsers = {};
+  connectedPeers.clear();
+  Object.values(remoteAnalyserIntervals).forEach(clearInterval);
+  remoteAnalyserIntervals = {};
+  Object.values(remoteAnalysers).forEach(a => a.ctx.close());
+  remoteAnalysers = {};
+  document.getElementById('voice-peer-grid').innerHTML = '';
+  if (isScreenSharing) stopScreenShare();
+  currentVoiceChannel = null;
+}
+
+socket.on('voice-users', (users) => {
+  renderVoiceUsers(users);
+  document.getElementById('voice-users-count').textContent = `${users.length} connected`;
+  users.forEach(u => {
+    if (u.id !== socket.id) {
+      createVoiceTile(u.id, u.user);
+      connectToPeer(u.id);
+    }
+  });
+});
+
+socket.on('voice-user-joined', (data) => {
+  if (data.id === socket.id) return;
+  createVoiceTile(data.id, data.user);
+  connectToPeer(data.id);
+  const users = document.querySelectorAll('.voice-user-tile').length;
+  document.getElementById('voice-users-count').textContent = `${users} connected`;
+});
+
+socket.on('voice-user-left', (data) => {
+  disconnectPeer(data.id);
+  const tile = document.querySelector(`.voice-user-tile[data-id="${data.id}"]`);
+  if (tile) tile.remove();
+  const users = document.querySelectorAll('.voice-user-tile').length;
+  document.getElementById('voice-users-count').textContent = `${users} connected`;
+});
+
+function renderVoiceUsers(users) {
+  const grid = document.getElementById('voice-peer-grid');
+  grid.innerHTML = '';
+  users.forEach(u => {
+    if (u.id !== socket.id) {
+      createVoiceTile(u.id, u.user);
+    }
+  });
+}
+
+function createVoiceTile(id, user) {
+  const existing = document.querySelector(`.voice-user-tile[data-id="${id}"]`);
+  if (existing) return;
+  const tile = document.createElement('div');
+  tile.className = 'voice-user-tile';
+  tile.dataset.id = id;
+  const avatarColor = user.avatar_color || '#58a6ff';
+  tile.innerHTML = `
+    <div class="vu-avatar" style="background:${avatarColor}">${getInitials(user.username)}</div>
+    <div class="vu-name">${user.username}</div>
+    <div class="vu-indicators">
+      <div class="vu-dot"></div>
+      <div class="vu-muted">MUTED</div>
+    </div>`;
+  document.getElementById('voice-peer-grid').appendChild(tile);
+}
+
+async function connectToPeer(peerId) {
+  if (peerConnections[peerId] || !localStream) return;
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  peerConnections[peerId] = pc;
+
+  localStream.getAudioTracks().forEach(track => pc.addTrack(track, localStream));
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate) socket.emit('voice-ice', { to: peerId, candidate: e.candidate });
+  };
+
+  pc.ontrack = (e) => {
+    const tile = document.querySelector(`.voice-user-tile[data-id="${peerId}"]`);
+    if (!tile) return;
+    let audio = tile.querySelector('audio');
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.autoplay = true;
+      tile.appendChild(audio);
+    }
+    audio.srcObject = e.streams[0];
+    audio.play().catch(() => {});
+    startRemoteTalkingDetection(peerId, e.streams[0]);
+  };
+
+  pc.onconnectionstatechange = () => {
+    const ind = document.getElementById('connection-indicator');
+    const txt = document.getElementById('connection-status-text');
+    if (pc.connectionState === 'connected') {
+      connectedPeers.add(peerId);
+      ind.className = '';
+      txt.textContent = `Connected (${connectedPeers.size} peer${connectedPeers.size !== 1 ? 's' : ''})`;
+    } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      connectedPeers.delete(peerId);
+      ind.className = 'warning';
+      txt.textContent = `Reconnecting...`;
+      setTimeout(() => connectToPeer(peerId), 2000);
+    }
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit('voice-offer', { to: peerId, offer });
+}
+
+socket.on('voice-offer', async (data) => {
+  if (!localStream) return;
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  peerConnections[data.from] = pc;
+  localStream.getAudioTracks().forEach(track => pc.addTrack(track, localStream));
+
+  pc.onicecandidate = (e) => {
+    if (e.candidate) socket.emit('voice-ice', { to: data.from, candidate: e.candidate });
+  };
+
+  pc.ontrack = (e) => {
+    const tile = document.querySelector(`.voice-user-tile[data-id="${data.from}"]`);
+    if (!tile) return;
+    let audio = tile.querySelector('audio');
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.autoplay = true;
+      tile.appendChild(audio);
+    }
+    audio.srcObject = e.streams[0];
+    audio.play().catch(() => {});
+    startRemoteTalkingDetection(data.from, e.streams[0]);
+  };
+
+  pc.onconnectionstatechange = () => {
+    const ind = document.getElementById('connection-indicator');
+    const txt = document.getElementById('connection-status-text');
+    if (pc.connectionState === 'connected') {
+      connectedPeers.add(data.from);
+      ind.className = '';
+      txt.textContent = `Connected (${connectedPeers.size} peer${connectedPeers.size !== 1 ? 's' : ''})`;
+    } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      connectedPeers.delete(data.from);
+      ind.className = 'warning';
+      txt.textContent = 'Reconnecting...';
+    }
+  };
+
+  await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  socket.emit('voice-answer', { to: data.from, answer });
+});
+
+socket.on('voice-answer', async (data) => {
+  const pc = peerConnections[data.from];
+  if (pc && pc.localDescription && pc.localDescription.type === 'offer') {
+    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+  }
+});
+
+socket.on('voice-ice', async (data) => {
+  const pc = peerConnections[data.from];
+  if (pc && pc.remoteDescription) {
+    await pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+  }
+});
+
+function disconnectPeer(peerId) {
+  if (peerConnections[peerId]) {
+    peerConnections[peerId].close();
+    delete peerConnections[peerId];
+  }
+  connectedPeers.delete(peerId);
+  stopRemoteTalkingDetection(peerId);
+}
+
+/* ====== TALKING DETECTION ====== */
+function startLocalTalkingDetection() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaStreamSource(localStream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  src.connect(analyser);
+  if (localAnalyserInterval) clearInterval(localAnalyserInterval);
+  localAnalyserInterval = setInterval(() => {
+    if (!localStream || isDeafened) return;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((a, b) => a + b, 0) / data.length;
+    const talking = avg > 15 && !isMuted && !pttActive;
+    const tile = document.querySelector(`.voice-user-tile[data-id="local"]`);
+    if (tile) tile.classList.toggle('talking', talking);
+  }, 100);
+}
+
+function startRemoteTalkingDetection(peerId, stream) {
+  if (remoteAnalyserIntervals[peerId]) clearInterval(remoteAnalyserIntervals[peerId]);
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaStreamSource(stream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  src.connect(analyser);
+  remoteAnalysers[peerId] = { ctx, analyser };
+  remoteAnalyserIntervals[peerId] = setInterval(() => {
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((a, b) => a + b, 0) / data.length;
+    const talking = avg > 12;
+    const tile = document.querySelector(`.voice-user-tile[data-id="${peerId}"]`);
+    if (tile) tile.classList.toggle('talking', talking);
+  }, 100);
+}
+
+function stopRemoteTalkingDetection(peerId) {
+  if (remoteAnalyserIntervals[peerId]) { clearInterval(remoteAnalyserIntervals[peerId]); delete remoteAnalyserIntervals[peerId]; }
+  if (remoteAnalysers[peerId]) { remoteAnalysers[peerId].ctx.close(); delete remoteAnalysers[peerId]; }
+}
+
+/* ====== VOICE CONTROLS ====== */
+const muteBtn = document.getElementById('mute-btn');
+const deafenBtn = document.getElementById('deafen-btn');
+const screenShareBtn = document.getElementById('screen-share-btn');
+const pttBtn = document.getElementById('ptt-btn');
+const micSelect = document.getElementById('mic-select');
+const speakerSelect = document.getElementById('speaker-select');
+
+muteBtn.addEventListener('click', () => {
+  isMuted = !isMuted;
+  if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = !isMuted));
+  muteBtn.classList.toggle('active', isMuted);
+  muteBtn.querySelector('.vc-label').textContent = isMuted ? 'Muted' : 'Mute';
+  const tile = document.querySelector('.voice-user-tile[data-id="local"]');
+  if (tile) tile.classList.toggle('muted', isMuted);
+});
+
+deafenBtn.addEventListener('click', () => {
+  isDeafened = !isDeafened;
+  deafenBtn.classList.toggle('active', isDeafened);
+  deafenBtn.querySelector('.vc-label').textContent = isDeafened ? 'Deafened' : 'Deafen';
+  if (isDeafened) {
+    muteBtn.classList.add('active');
+    muteBtn.querySelector('.vc-label').textContent = 'Muted';
+    if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = false));
+  } else {
+    isMuted = false;
+    muteBtn.classList.remove('active');
+    muteBtn.querySelector('.vc-label').textContent = 'Mute';
+    if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = true));
+  }
+});
+
+pttBtn.addEventListener('click', () => {
+  pttMode = !pttMode;
+  pttBtn.classList.toggle('active', pttMode);
+  pttBtn.querySelector('.vc-label').textContent = pttMode ? 'PTT On' : 'PTT';
+  if (!pttMode && localStream) localStream.getAudioTracks().forEach(t => (t.enabled = !isMuted));
+  pttActive = false;
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && pttMode && currentView === 'voice' && !e.repeat) {
+    e.preventDefault();
+    pttActive = true;
+    if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = true));
+    const tile = document.querySelector(`.voice-user-tile[data-id="local"]`);
+    if (tile) tile.classList.add('talking');
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' && pttMode) {
+    pttActive = false;
+    if (localStream) localStream.getAudioTracks().forEach(t => (t.enabled = !isMuted));
+    const tile = document.querySelector(`.voice-user-tile[data-id="local"]`);
+    if (tile) tile.classList.remove('talking');
+  }
+});
+
+async function enumerateDevices() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  micSelect.innerHTML = '';
+  speakerSelect.innerHTML = '';
+  const currentMic = localStream?.getAudioTracks()[0]?.getSettings().deviceId;
+  devices.forEach(d => {
+    if (d.kind === 'audioinput') {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `Mic ${micSelect.length + 1}`;
+      if (d.deviceId === currentMic) opt.selected = true;
+      micSelect.appendChild(opt);
+    }
+    if (d.kind === 'audiooutput') {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `Speaker ${speakerSelect.length + 1}`;
+      speakerSelect.appendChild(opt);
+    }
+  });
+}
+
+navigator.mediaDevices.addEventListener('devicechange', enumerateDevices);
+
+micSelect.addEventListener('change', async () => {
+  if (!localStream) return;
+  const oldStream = localStream;
+  localStream = await navigator.mediaDevices.getUserMedia({
+    audio: { deviceId: micSelect.value ? { exact: micSelect.value } : undefined, noiseSuppression: true, echoCancellation: true },
+    video: false
+  });
+  oldStream.getTracks().forEach(t => t.stop());
+  Object.entries(peerConnections).forEach(([id, pc]) => {
+    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+    if (sender) sender.replaceTrack(localStream.getAudioTracks()[0]);
+  });
+});
+
+speakerSelect.addEventListener('change', () => {
+  document.querySelectorAll('audio').forEach(el => {
+    if (el.srcObject && typeof el.setSinkId === 'function') el.setSinkId(speakerSelect.value).catch(() => {});
+  });
+});
+
+/* ====== SCREEN SHARE ====== */
+screenShareBtn.addEventListener('click', () => {
+  if (isScreenSharing) stopScreenShare();
+  else startScreenShare();
+});
+
+async function startScreenShare() {
+  try {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+      audio: false
+    });
+    isScreenSharing = true;
+    screenShareBtn.classList.add('active');
+    screenShareBtn.querySelector('.vc-label').textContent = 'Stop';
+    document.getElementById('local-screen-preview').style.display = 'flex';
+    document.getElementById('local-screen-video').srcObject = screenStream;
+    screenStream.getVideoTracks()[0].onended = stopScreenShare;
+  } catch {}
+}
+
+function stopScreenShare() {
+  if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
+  isScreenSharing = false;
+  screenShareBtn.classList.remove('active');
+  screenShareBtn.querySelector('.vc-label').textContent = 'Share';
+  document.getElementById('local-screen-preview').style.display = 'none';
+  document.getElementById('local-screen-video').srcObject = null;
+}
+
+document.getElementById('stop-screen-btn').addEventListener('click', stopScreenShare);
+
+/* ====== CHAT ====== */
+const chatView = document.getElementById('chat-view');
+const chatMessages = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+const chatSendBtn = document.getElementById('chat-send-btn');
+const chatTyping = document.getElementById('chat-typing');
+let currentChatChannel = null;
+
+async function switchToChat(channel) {
+  document.getElementById('voice-view').style.display = 'none';
+  chatView.style.display = 'flex';
+  currentView = 'chat';
+  currentChatChannel = channel;
+  document.getElementById('chat-channel-name').textContent = channel.name;
+  chatMessages.innerHTML = '';
+  chatTyping.textContent = '';
+
+  socket.emit('chat:join', channel.id);
+
+  const res = await fetch(`${API}/api/channels/${channel.id}/messages`);
+  const msgs = await res.json();
+  msgs.forEach(msg => renderMessage(msg));
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function renderMessage(msg) {
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.innerHTML = `
+    <div class="chat-msg-avatar" style="background:${msg.avatar_color || '#58a6ff'}">${getInitials(msg.username)}</div>
+    <div class="chat-msg-body">
+      <div class="chat-msg-header">
+        <span class="chat-msg-user">${msg.username}</span>
+        <span class="chat-msg-time">${formatTime(msg.created_at)}</span>
+      </div>
+      <div class="chat-msg-content">${escapeHtml(msg.content)}</div>
+    </div>`;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function formatTime(dateStr) {
+  const d = new Date(dateStr + 'Z');
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+socket.on('new-message', (msg) => {
+  if (currentChatChannel && msg.channel_id === currentChatChannel.id) {
+    if (!document.querySelector(`.chat-msg:last-child`)) {
+      renderMessage(msg);
+    } else {
+      renderMessage(msg);
+    }
+  }
+});
+
+chatSendBtn.addEventListener('click', sendMessage);
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+chatInput.addEventListener('input', () => {
+  if (!currentChatChannel) return;
+  chatInput.style.height = 'auto';
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+  socket.emit('typing', { channelId: currentChatChannel.id });
+});
+
+socket.on('typing', (data) => {
+  if (!currentChatChannel) return;
+  if (data.userId === currentUser.id) return;
+  chatTyping.textContent = `${data.username} is typing...`;
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => { chatTyping.textContent = ''; }, 2000);
+});
+
+async function sendMessage() {
+  const content = chatInput.value.trim();
+  if (!content || !currentChatChannel || !token) return;
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+  chatTyping.textContent = '';
+  try {
+    await fetch(`${API}/api/channels/${currentChatChannel.id}/messages`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token },
+      body: JSON.stringify({ content })
+    });
+  } catch {}
+}
+
+/* ====== SETUP SOCKET ====== */
+function setupSocket() {
+  socket.on('voice-offer', async (data) => { /* handled above */ });
+  socket.on('voice-answer', async (data) => { /* handled above */ });
+  socket.on('voice-ice', async (data) => { /* handled above */ });
+  socket.on('voice-users', (users) => { /* handled above */ });
+  socket.on('voice-user-joined', (data) => { /* handled above */ });
+  socket.on('voice-user-left', (data) => { /* handled above */ });
+  socket.on('new-message', (msg) => { /* handled above */ });
+  socket.on('typing', (data) => { /* handled above */ });
+}
+
+/* ====== START ====== */
+(async () => {
+  if (await checkAuth()) {
+    initApp();
+  } else {
+    /* token not set or expired — show auth screen */
+  }
+})();
+
+================================================================================
+ END OF SOURCE
+================================================================================

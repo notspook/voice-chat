@@ -138,6 +138,12 @@ if (chSql && chSql.sql && !chSql.sql.includes("'dm'")) {
   `);
 }
 
+/* ensure every server has at least a default "@everyone" role */
+const serversNoRole = db.prepare(`SELECT id FROM servers WHERE id NOT IN (SELECT DISTINCT server_id FROM roles)`).all();
+for (const sv of serversNoRole) {
+  db.prepare(`INSERT INTO roles (server_id, name, position, permissions) VALUES (?, 'everyone', 0, ?)`).run(sv.id, Number(DEFAULT_ROLE_PERMS));
+}
+
 function generateInvite(){ return crypto.randomBytes(4).toString('hex'); }
 
 /* ---- default server: adopt legacy channels, everyone is a member ---- */
@@ -416,6 +422,7 @@ app.post('/api/servers', (req, res) => {
   const ins = db.prepare(`INSERT INTO channels (name, type, position, server_id) VALUES (?, ?, ?, ?)`);
   ins.run('General', 'voice', 0, sid);
   ins.run('general', 'text', 1, sid);
+  db.prepare(`INSERT INTO roles (server_id, name, position, permissions) VALUES (?, 'everyone', 0, ?)`).run(sid, Number(DEFAULT_ROLE_PERMS));
   res.json(db.prepare(`SELECT id, name, owner_id, invite_code, icon FROM servers WHERE id = ?`).get(sid));
 });
 
