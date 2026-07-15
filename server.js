@@ -1,3 +1,12 @@
+/* load .env file if present (for local dev — Render uses dashboard env vars) */
+try {
+  const env = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+  env.split('\n').filter(Boolean).forEach(line => {
+    const m = /^\s*(\w+)\s*=\s*(.*?)\s*$/.exec(line);
+    if (m) process.env[m[1]] = m[2];
+  });
+} catch {}
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
