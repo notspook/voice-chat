@@ -138,12 +138,6 @@ if (chSql && chSql.sql && !chSql.sql.includes("'dm'")) {
   `);
 }
 
-/* ensure every server has at least a default "@everyone" role */
-const serversNoRole = db.prepare(`SELECT id FROM servers WHERE id NOT IN (SELECT DISTINCT server_id FROM roles)`).all();
-for (const sv of serversNoRole) {
-  db.prepare(`INSERT INTO roles (server_id, name, position, permissions) VALUES (?, 'everyone', 0, ?)`).run(sv.id, Number(DEFAULT_ROLE_PERMS));
-}
-
 function generateInvite(){ return crypto.randomBytes(4).toString('hex'); }
 
 /* ---- default server: adopt legacy channels, everyone is a member ---- */
@@ -299,6 +293,12 @@ function canAccessChannelPerms(channel, userId) {
 
 /* Default role permissions for new servers */
 const DEFAULT_ROLE_PERMS = PERM.READ_MESSAGES | PERM.SEND_MESSAGES | PERM.CONNECT | PERM.SPEAK | PERM.CREATE_INSTANT_INVITE | PERM.USE_SOUNDBOARD | PERM.CHANGE_NICKNAME;
+
+/* ensure every server has at least a default "@everyone" role */
+const serversNoRole = db.prepare(`SELECT id FROM servers WHERE id NOT IN (SELECT DISTINCT server_id FROM roles)`).all();
+for (const sv of serversNoRole) {
+  db.prepare(`INSERT INTO roles (server_id, name, position, permissions) VALUES (?, 'everyone', 0, ?)`).run(sv.id, Number(DEFAULT_ROLE_PERMS));
+}
 
 function assignAutoRole(serverId, userId) {
   const setting = db.prepare(`SELECT auto_role_id FROM server_settings WHERE server_id = ?`).get(serverId);
